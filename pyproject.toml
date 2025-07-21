@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "microprojects"
+description = "MicroProjects in Python"
+version = "0.0.2"
+keywords = ["microprojects", "ideas", "project ideas", "calculator"]
+readme = "README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">= 3.8"
+dependencies = []
+authors = [
+  {name = "Nyx", email = "241463@students.au.edu.pk"},
+]
+maintainers = [
+  {name = "Nyx", email = "241463@students.au.edu.pk"},
+]
+
+
+[project.urls]
+Documentation = "https://github.com/nyx-4/MicroProjects/wiki"
+Repository = "https://github.com/nyx-4/MicroProjects"
+Issues = "https://github.com/nyx-4/MicroProjects/issues"
+Changelog = "https://github.com/nyx-4/MicroProjects/blob/main/CHANGELOG.md"
+DOWNLOAD = "https://example.com/abc.tar.gz"
+
+
+[project.scripts]
+calc = "calculator:main"
+
+
+[project.optional-dependencies]
+gui = []
+cli = []
+
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-q"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["calculator"]
