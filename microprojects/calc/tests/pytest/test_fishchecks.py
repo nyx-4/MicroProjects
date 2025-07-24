@@ -1,4 +1,4 @@
-from calculator import calc
+from microprojects import calc
 
 
 def test_div_trunc():

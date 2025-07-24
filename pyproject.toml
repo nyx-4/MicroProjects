@@ -29,7 +29,7 @@ DOWNLOAD = "https://example.com/abc.tar.gz"
 
 
 [project.scripts]
-calc = "calculator:main"
+calc = "microprojects:calc_main"
 
 
 [project.optional-dependencies]
@@ -44,4 +44,4 @@ addopts = "-q"
 
 
 [tool.hatch.build.targets.wheel]
-packages = ["calculator"]
+packages = ["microprojects"]

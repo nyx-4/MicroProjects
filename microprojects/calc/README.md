@@ -12,11 +12,15 @@ A simple calculator written in Python that _just_ works. **This Calculator is hi
     - [PyPI (Python)](#pypi-python)
 - [Usage](#usage)
     - [From CLI](#from-cli)
-    - [From Python](#from-python)
+    - [As Python module](#as-python-module)
+    - [From Python source](#from-python-source)
 - [Syntax](#syntax)
     - [Operators](#operators)
     - [Constants](#constants)
     - [Functions](#functions)
+- [Deviations from fish-shell's `math`](#deviations-from-fish-shells-math)
+    - [Handling Hexadecimals](#handling-hexadecimals)
+    - [Function's paranthesis](#functions-paranthesis)
 - [Examples](#examples)
 - [Contributing](#contributing)
 - [License](#license)
@@ -72,7 +76,17 @@ calc bitand 0xFE, 0x2e
 ```
 
 
-### From Python
+### As Python module
+
+```sh
+python -m microprojects.calc --base 16 192
+python -m microprojects.calc -s 3 10 / 6
+python -m microprojects.calc "sin(pi)"
+python -m microprojects.calc bitand 0xFE, 0x2e
+```
+
+
+### From Python source
 
 ```py
 from calculator import calc
@@ -103,6 +117,27 @@ All of these [constants](https://fishshell.com/docs/current/cmds/math.html#const
 All of these [functions](https://fishshell.com/docs/current/cmds/math.html#functions) and all of these [functions](https://docs.python.org/3/library/math.html)
 
 
+## Deviations from fish-shell's `math`
+
+### Handling Hexadecimals
+1. In `calc`, _0_ before _x_ in hexadecimals is optional.
+2. The delimeter after a hexadecimal is optional, if the next char happens to be non-hexademical character (i.e., not `0123456789ABCDEFabcdef`)  
+
+In `calc`, _x3_ is same as _0x3_ (or 3). In `math`, _x3_ responds with _**Error**: Unknown function_.  
+In `calc`, _min(0x1api)_ is same as _min(0x1a, pi)_. In `math`, _min(0x1api)_ reponds with either _**Error**: Unexpected token_, or _**Error**: Too few arguments_ or _**Error**: Too many arguments_ depending on context [^0x1api].
+
+[^0x1api]: The Errors and their context in math is:  
+    `math 'min(0x1api)'` responds _**Error**: Too few arguments_.  
+    `math '0x1api'` responds _**Error**: Unexpected token_  
+    `math 'min(2,0x1api)'` responds _**Error**: Too many arguments_  
+
+
+### Function's paranthesis
+1. In `calc`, extra closing paranthesis are ignored. In `math`, it's _**Error**: Too many arguments_  
+2. In `calc`, paranthesis are required to distinguish between _functions_ and _constants_. In `math`, paranthesis are optional.
+
+In `calc`, _'min(1, 2, 3, max(5,6,7))))) + pow(2, 4)))'_ is same as _'min(1, 2, 3, max(5,6,7)) + pow(2, 4)'_.  
+In `calc`, the **_min_** in _min 1, 2_ is interpreted as constant. In `math`, _min 1, 2_ is same as _min(1, 2)_.  
 
 
 ## Examples
@@ -123,7 +158,7 @@ Taken verbatium from [math - perform mathematics calculations](https://fishshell
 
 `calc 0xFF` outputs 255, `math 0 x 3` outputs `0` (because it computes 0 multiplied by 3).  
 
-`calc bitand 0xFE, 0x2e` outputs `46`.  
+`calc bitand (0xFE, 0x2e)` outputs `46`.  
 
 `calc "bitor(9,2)"` outputs `11`.  
 
@@ -131,7 +166,7 @@ Taken verbatium from [math - perform mathematics calculations](https://fishshell
 
 `calc 'ncr(49,6)'` prints `13983816` - that’s the number of possible picks in 6-from-49 lotto.  
 
-`calc max 5,2,3,1` prints `5`.  
+`calc max(5,2,3,1)` prints `5`.  
 
 
 ## Contributing

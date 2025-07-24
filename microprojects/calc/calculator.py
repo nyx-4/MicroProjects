@@ -1,14 +1,24 @@
 import math
 import sys
-from calculator import lexical_analyzer
+from microprojects.calc import analyzer
 
 
 def calc(expr, *, scale=6, base=10, scale_mode="default") -> int:
-    print(f"{expr=} {scale=} {base=} {scale_mode=}")
+    lexemes: dict = {
+        "min": min,
+        "max": max,
+        "c": 299_792_458,
+        "pi": 3.14159265358979323,
+        "pow": pow,
+        "bitand": lambda x, y: x & y,
+    }
+
+    print(analyzer.lexical_analyzer(expr, known_lexemes=lexemes))
+    # print(f"{expr=} {scale=} {base=} {scale_mode=}")
     return 0
 
 
-def main() -> None:
+def calc_main() -> None:
     scale: int = 6
     base: int = 10
     scale_mode: str = "default"
@@ -25,17 +35,11 @@ def main() -> None:
             break
         i += 2
     else:
-        sys.exit("math: expected >= 1 arguments; got 0")
+        sys.exit("calc: expected >= 1 arguments; got 0")
 
-    sys.exit(
-        calc(
-            lexical_analyzer.normalize_expr(sys.argv[i:]),
-            scale=scale,
-            base=base,
-            scale_mode=scale_mode,
-        )
+    calc(
+        " ".join(sys.argv[i:]),
+        scale=scale,
+        base=base,
+        scale_mode=scale_mode,
     )
-
-
-if __name__ == "__main__":
-    main()

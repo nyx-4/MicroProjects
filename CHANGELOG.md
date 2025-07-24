@@ -19,9 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Setup the skeleton of MicroProjects in an extensible manner.
 - Added Calculator module
 - Ported tests from [fish-shell](https://github.com/fish-shell/fish-shell/blob/master/tests/checks/math.fish) to pytest.
 - Ported examples from [math - perform mathematics calculations](https://fishshell.com/docs/current/cmds/math.html#examples) to check50 and pytest.
+- Added a simple lexical analyzer (without Error handling).
 - 
 
 <!-- ## [0.0.1] -->
