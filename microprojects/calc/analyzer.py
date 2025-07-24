@@ -26,19 +26,28 @@ def lexical_analyzer(ch_stream: str, *, known_lexemes: dict = {}) -> list:
             lexeme_begin += 1
 
         # x followed by space is *
-        elif ch_stream[lexeme_begin] == "x" and ch_stream[forward + 1] == " ":
+        elif (
+            lexeme_begin + 1 < len_ch_str
+            and ch_stream[lexeme_begin] == "x"
+            and ch_stream[lexeme_begin + 1] == " "
+        ):
             token_stream += "*"
             lexeme_begin += 1
 
         # 0x will fall to next elif
         elif (
-            ch_stream[lexeme_begin] == "0"
-            and ch_stream[forward + 1] == "x"
-            and ch_stream[forward + 2] in hexa
+            lexeme_begin + 2 < len_ch_str
+            and ch_stream[lexeme_begin] == "0"
+            and ch_stream[lexeme_begin + 1] == "x"
+            and ch_stream[lexeme_begin + 2] in hexa
         ):
             lexeme_begin += 1
 
-        elif ch_stream[lexeme_begin] == "x" and ch_stream[forward + 1] in hexa:
+        elif (
+            lexeme_begin + 1 < len_ch_str
+            and ch_stream[lexeme_begin] == "x"
+            and ch_stream[lexeme_begin + 1] in hexa
+        ):
             forward += 1  # read the x
             while forward < len_ch_str and (
                 ch_stream[forward] in hexa or ch_stream[forward] == "_"
@@ -55,6 +64,7 @@ def lexical_analyzer(ch_stream: str, *, known_lexemes: dict = {}) -> list:
                     forward += 1
                 elif ch_stream[forward] in ".eE":  # if . or e, then float
                     is_float = True
+                    forward += 1
                 else:
                     break
 

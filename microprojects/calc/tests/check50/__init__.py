@@ -4,7 +4,8 @@ import check50
 @check50.check()
 def exists():
     """Checking whether calculator/main.py exists"""
-    check50.exists("calculator/main.py")
+    check50.exists("microprojects/calc/__main__.py")
+    check50.exists("microprojects/calc/__init__.py")
 
 
 @check50.check(exists)
