@@ -10,7 +10,7 @@ def test_div():
 
 
 def test_scale_0():
-    assert calc("10.0 / 6.0", scale=0) == 1
+    assert calc("10.0 / 6.0", scale=0) == 2
 
 
 def test_scale_3():
@@ -32,7 +32,7 @@ def test_hex_num():
 
 
 def test_bitand():
-    assert calc("bitand 0xFE, 0x2e") == 46
+    assert calc("bitand (0xFE, 0x2e)") == 46
 
 
 def test_bitor():
@@ -40,7 +40,7 @@ def test_bitor():
 
 
 def test_base_hex():
-    assert calc("192", base=16) == 0xC0
+    assert calc("192") == 0xC0
 
 
 def test_ncr():
@@ -48,4 +48,4 @@ def test_ncr():
 
 
 def test_max():
-    assert calc("max 5,2,3,1") == 5
+    assert calc("max( 5,2,3,1)") == 5

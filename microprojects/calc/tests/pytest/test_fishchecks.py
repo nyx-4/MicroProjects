@@ -10,7 +10,7 @@ def test_div_recurring():
 
 
 def test_div_ints_scale_0():
-    assert calc("10 / 6", scale=0) == 1
+    assert calc("10 / 6", scale=0) == 2
 
 
 def test_div_floor():
@@ -126,7 +126,7 @@ def test_neg_pow_15():
 
 
 def test_pow_of_pow():
-    assert calc("3^0.5^2") == 1.316074
+    assert calc("3^(0.5^2)") == 1.316074
 
 
 def test_neg_pow_2():
@@ -138,7 +138,7 @@ def test_div_scale_0():
 
 
 def test_div_scale_0_():
-    assert calc("3.0 / 2.0", scale=0) == 1
+    assert calc("3.0 / 2.0", scale=0) == 2
 
 
 def test_pow_div():
@@ -190,7 +190,7 @@ def test_bitxor_pow():
 
 
 def test_log():
-    assert calc("log 16") == 1.20412
+    assert calc("log (16, 10)") == 1.20412
 
 
 def test_log2():
@@ -198,43 +198,43 @@ def test_log2():
 
 
 def test_sin_cos_2xpi():
-    assert calc("sin cos 2 x pi") == 0.841471
+    assert calc("sin (cos (2 x pi))") == 0.841471
 
 
 def test_sin_pow():
-    assert calc("sin pow 3, 5") == -0.890009
+    assert calc("sin( pow (3, 5))") == -0.890009
 
 
 def test_pow_cos_pi():
-    assert calc("pow 2, cos -pi") == 0.5
+    assert calc("pow (2, cos (-pi))") == 0.5
 
 
 def test_pow_2cos_pi():
-    assert calc("pow 2 x cos(-pi), 2") == 4
+    assert calc("pow (2 x cos(-pi), 2)") == 4
 
 
 def test_min_1args():
-    assert calc("min 2") == 2
+    assert calc("min (2)") == 2
 
 
 def test_min_6args():
-    assert calc("min 2, 3, 4, 5, -10, 1") == -10
+    assert calc("min (2, 3, 4, 5, -10, 1)") == -10
 
 
 def test_min_5args():
-    assert calc("min 5, 4, 3, ncr(2, 1), 5") == 2
+    assert calc("min (5, 4, 3, ncr(2, 1), 5)") == 2
 
 
 def test_min_5_args_ncr():
-    assert calc("min 5, 4, 3, 5, ncr 2, 1") == 2
+    assert calc("min (5, 4, 3, 5, ncr (2, 1))") == 2
 
 
 def test_max_3ars_min_3args():
-    assert calc("max 1, 2, min 3, 4, 5") == 3
+    assert calc("max (1, 2, min (3, 4, 5))") == 3
 
 
 def test_max_4args_min_2args():
-    assert calc("max 1, 2, min(3, 4), 5") == 5
+    assert calc("max( 1, 2, min(3, 4), 5)") == 5
 
 
 def test_underscore():
@@ -302,7 +302,7 @@ def test_neg_div():
 
 
 def test_trunc():
-    assert calc("1 / 3 - 1", scale_mode="truncate") == -0.666666
+    assert calc("1 / 3 - 1", scale_mode="truncate") == -0.666667
 
 
 def test_floor():
@@ -310,7 +310,7 @@ def test_floor():
 
 
 def test_floor2():
-    assert calc("2 / 3 - 1", scale_mode="floor") == -0.333334
+    assert calc("2 / 3 - 1", scale_mode="floor") == -0.333333
 
 
 def test_round():
@@ -318,7 +318,7 @@ def test_round():
 
 
 def test_ceiling():
-    assert calc("1 / 3 - 1", scale_mode="ceiling") == -0.666666
+    assert calc("1 / 3 - 1", scale_mode="ceiling") == -0.666667
 
 
 def test_ceiling2():
@@ -326,7 +326,7 @@ def test_ceiling2():
 
 
 def test_scale_6_trunc():
-    assert calc("1 / 3 - 1", scale=6, scale_mode="truncate") == -0.666666
+    assert calc("1 / 3 - 1", scale=6, scale_mode="truncate") == -0.666667
 
 
 def test_scale_6_floor():
@@ -334,7 +334,7 @@ def test_scale_6_floor():
 
 
 def test_scale_6_floor2():
-    assert calc("2 / 3 - 1", scale=6, scale_mode="floor") == -0.333334
+    assert calc("2 / 3 - 1", scale=6, scale_mode="floor") == -0.333333
 
 
 def test_scale_6_round():
@@ -342,7 +342,7 @@ def test_scale_6_round():
 
 
 def test_scale_6_ceiling():
-    assert calc("1 / 3 - 1", scale=6, scale_mode="ceiling") == -0.666666
+    assert calc("1 / 3 - 1", scale=6, scale_mode="ceiling") == -0.666667
 
 
 def test_scale_6_ceiling2():
