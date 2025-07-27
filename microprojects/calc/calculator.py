@@ -4,6 +4,15 @@ from microprojects.calc import analyzer
 
 
 def calc(expr, *, scale=6, scale_mode="default") -> int | float:
+    def Min(*args):
+        return min(args) if type(args) == tuple else args
+
+    def Max(*args):
+        return max(args) if type(args) == tuple else args
+
+    def Sum(*args):
+        return sum(args) if type(args) == tuple else args
+
     lexemes: dict = {
         "^": lambda x, y: x**y,
         "%": lambda x, y: x % y,
@@ -15,12 +24,12 @@ def calc(expr, *, scale=6, scale_mode="default") -> int | float:
         "e": math.e,
         "tau": math.tau,
         "c": 299_792_458,
-        "bitand": lambda x, y: x & y,
-        "bitor": lambda x, y: x | y,
-        "bitxor": lambda x, y: x ^ y,
-        "min": min,
-        "max": max,
-        "sum": sum,
+        "bitand": lambda x, y: int(x) & int(y),
+        "bitor": lambda x, y: int(x) | int(y),
+        "bitxor": lambda x, y: int(x) ^ int(y),
+        "min": Min,
+        "max": Max,
+        "sum": Sum,
         "round": round,
         "pow": math.pow,
         "ncr": math.comb,
@@ -83,7 +92,17 @@ def calc(expr, *, scale=6, scale_mode="default") -> int | float:
     if type(answer) is int:  # int doesn't need scale or scale_mode
         return answer
     else:  # Using scale and scale_mode to format output
-        return float(f"{round(answer, scale)}")
+        if scale == 0:  # scale_mode, only works if scale is 0
+            if scale_mode == "truncate":
+                return math.trunc(answer)
+            elif scale_mode == "ceiling":
+                return math.ceil(answer)
+            elif scale_mode == "floor":
+                return math.floor(answer)
+            else:
+                return round(answer)
+        else:
+            return round(answer, scale)
 
 
 def calc_main() -> None:

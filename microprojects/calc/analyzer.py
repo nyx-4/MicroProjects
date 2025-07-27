@@ -22,7 +22,7 @@ def lexical_analyzer(ch_stream: str, known_lexemes: dict = {}) -> list:
         is_float: bool = False
         forward: int = lexeme_begin
 
-        if ch_stream[lexeme_begin] == " ":  # ignore spaces, commas and )
+        if ch_stream[lexeme_begin] == " ":  # ignore spaces
             lexeme_begin += 1
 
         # x followed by space is *
@@ -62,9 +62,15 @@ def lexical_analyzer(ch_stream: str, known_lexemes: dict = {}) -> list:
             while forward < len_ch_str:
                 if ch_stream[forward].isdigit() or ch_stream[forward] == "_":
                     forward += 1
-                elif ch_stream[forward] in ".eE":  # if . or e, then float
+                # if . or e, then float
+                elif ch_stream[forward] == ".":
                     is_float = True
                     forward += 1
+                elif ch_stream[forward] in "eE":
+                    is_float = True
+                    forward += 1
+                    if ch_stream[forward] == "-":
+                        forward += 1
                 else:
                     break
 
@@ -119,6 +125,15 @@ def lexical_analyzer(ch_stream: str, known_lexemes: dict = {}) -> list:
         else:
             token_stream.append(ch_stream[lexeme_begin])
             lexeme_begin += 1
+
+    # Iterate once again to find unary -
+    idx: int = len(token_stream) - 1
+    while idx >= 0:
+        if token_stream[idx] == "-" and (
+            idx == 0 or type(token_stream[idx - 1]) is str
+        ):
+            token_stream[idx : idx + 2] = [-token_stream[idx + 1]]
+        idx -= 1
 
     return token_stream
 

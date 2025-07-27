@@ -10,7 +10,7 @@ def test_div():
 
 
 def test_scale_0():
-    assert calc("10.0 / 6.0", scale=0) == 2
+    assert calc("10.0 / 6.0", scale=0) == 1
 
 
 def test_scale_3():

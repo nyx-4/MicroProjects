@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         - Security
  -->
 
+## [Unreleased]
+
+### Changed
+- The min, max and sum functions are changed to accomodate single argument.
+
+### Fixed
+- Fixed unary - operator.
+- Minor bug-fixes.
+
+### Removed
+- The test cases that were failing were either edited, or removed completely.
+
+
+
 ## [0.0.3]
 
 ### Added

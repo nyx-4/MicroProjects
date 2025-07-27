@@ -14,6 +14,10 @@ A simple calculator written in Python that _just_ works. **This Calculator is hi
     - [From CLI](#from-cli)
     - [As Python module](#as-python-module)
     - [From Python source](#from-python-source)
+- [CLI flags](#cli-flags)
+    - [`-b BASE or --base BASE`:](#-b-base-or---base-base)
+    - [`m MODE or --scale-mode MODE`:](#m-mode-or---scale-mode-mode)
+    - [`-s N or --scale N`;](#-s-n-or---scale-n)
 - [Syntax](#syntax)
     - [Operators](#operators)
     - [Constants](#constants)
@@ -72,7 +76,7 @@ Also see [Examples](#examples).
 calc --base 16 192
 calc -s 3 10 / 6
 calc "sin(pi)"
-calc bitand 0xFE, 0x2e
+calc "bitand(0xFE, 0x2e)"
 ```
 
 
@@ -82,7 +86,7 @@ calc bitand 0xFE, 0x2e
 python -m microprojects.calc --base 16 192
 python -m microprojects.calc -s 3 10 / 6
 python -m microprojects.calc "sin(pi)"
-python -m microprojects.calc bitand 0xFE, 0x2e
+python -m microprojects.calc "bitand(0xFE, 0x2e)"
 ```
 
 
@@ -92,11 +96,25 @@ python -m microprojects.calc bitand 0xFE, 0x2e
 from calculator import calc
 
 
-calc("192", base=16)
-calc("10 / 6", scale=3)
-calc("sin(pi)")
-calc("bitand 0xFE, 0x2e")
+microprojects.calc("192", base=16)
+microprojects.calc("10 / 6", scale=3)
+microprojects.calc("sin(pi)")
+microprojects.calc("bitand(0xFE, 0x2e)")
 ```
+
+## CLI flags
+### `-b BASE or --base BASE`:
+Sets the numeric base used for output. It currently supports 2, 8, 10 and 16. The prefix of 0b, 0o, and 0x will be used.
+> [!NOTE]
+> The base's other than 10 implies the scale of 0. The output is rounded to nearest even number.
+
+### `m MODE or --scale-mode MODE`:
+Sets scale behavior. The MODE can be `truncate`, `round`, `floor`, `ceiling`. The default value of scale mode is `round`.
+> [!NOTE]
+> The scale-mode is ignored if scale is not 0.
+
+### `-s N or --scale N`;
+Sets the scale of the result. `N` must be an interger.
 
 
 ## Syntax
@@ -107,11 +125,15 @@ For numbers, `.` is always the radix character regardless of locale - `2.5`, not
 `calc` also allows the use of underscores as visual separators for digit grouping. For example, you can write `1_000_000`, `0x_89_AB_CD_EF`, and `1.234_567_e89`.
 
 ### Operators
-All of these [operators](https://fishshell.com/docs/current/cmds/math.html#operators). Note that `^` is used for exponentiation, not `**`.
+All of these [operators](https://fishshell.com/docs/current/cmds/math.html#operators). 
+> [!NOTE]
+> `^` is used for exponentiation, not `**`.
 
 ### Constants
-All of these [constants](https://fishshell.com/docs/current/cmds/math.html#constants).
-
+`e`: Euler's number
+`pi`: Pi
+`tau`: Tau, equivalent to 2 * pi
+`c`: The speed of light
 
 ### Functions
 All of these [functions](https://fishshell.com/docs/current/cmds/math.html#functions) and all of these [functions](https://docs.python.org/3/library/math.html)
@@ -122,8 +144,10 @@ All of these [functions](https://fishshell.com/docs/current/cmds/math.html#funct
 ### Handling Hexadecimals
 1. In `calc`, _0_ before _x_ in hexadecimals is optional.
 2. The delimeter after a hexadecimal is optional, if the next char happens to be non-hexademical character (i.e., not `0123456789ABCDEFabcdef`)  
+3. The `math` supports decimal-point in Hexadecimals, `calc` does not.
 
 In `calc`, _x3_ is same as _0x3_ (or 3). In `math`, _x3_ responds with _**Error**: Unknown function_.  
+_0x4.5_ is valid in `math`, but invalid in `calc`.  
 In `calc`, _min(0x1api)_ is same as _min(0x1a, pi)_. In `math`, _min(0x1api)_ reponds with either _**Error**: Unexpected token_, or _**Error**: Too few arguments_ or _**Error**: Too many arguments_ depending on context [^0x1api].
 
 [^0x1api]: The Errors and their context in math is:  
@@ -133,10 +157,8 @@ In `calc`, _min(0x1api)_ is same as _min(0x1a, pi)_. In `math`, _min(0x1api)_ re
 
 
 ### Function's paranthesis
-1. In `calc`, extra closing paranthesis are ignored. In `math`, it's _**Error**: Too many arguments_  
-2. In `calc`, paranthesis are required to distinguish between _functions_ and _constants_. In `math`, paranthesis are optional.
+1. In `calc`, paranthesis are required to distinguish between _functions_ and _constants_. In `math`, paranthesis are optional.
 
-In `calc`, _'min(1, 2, 3, max(5,6,7))))) + pow(2, 4)))'_ is same as _'min(1, 2, 3, max(5,6,7)) + pow(2, 4)'_.  
 In `calc`, the **_min_** in _min 1, 2_ is interpreted as constant. In `math`, _min 1, 2_ is same as _min(1, 2)_.  
 
 

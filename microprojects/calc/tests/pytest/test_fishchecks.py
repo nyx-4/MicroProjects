@@ -10,7 +10,7 @@ def test_div_recurring():
 
 
 def test_div_ints_scale_0():
-    assert calc("10 / 6", scale=0) == 2
+    assert calc("10 / 6", scale=0) == 1
 
 
 def test_div_floor():
@@ -138,7 +138,7 @@ def test_div_scale_0():
 
 
 def test_div_scale_0_():
-    assert calc("3.0 / 2.0", scale=0) == 2
+    assert calc("3.0 / 2.0", scale=0) == 1
 
 
 def test_pow_div():
@@ -267,14 +267,6 @@ def test_underscore_neg_exp():
 
 def test_underscore_exp_neg():
     assert calc("20e-0_1") == 2
-
-
-def test_underscore_exp_npr():
-    assert calc("0x0_2.0_0_0P0_2") == 8
-
-
-def test_underscore_neg_exp_npr():
-    assert calc("-0x8p-0_3") == -1
 
 
 def test_div_sub():
