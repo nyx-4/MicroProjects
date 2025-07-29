@@ -93,14 +93,14 @@ def calc(expr, *, scale=6, scale_mode="default") -> int | float:
         return answer
     else:  # Using scale and scale_mode to format output
         if scale == 0:  # scale_mode, only works if scale is 0
-            if scale_mode == "truncate":
-                return math.trunc(answer)
+            if scale_mode == "round":
+                return round(answer)
             elif scale_mode == "ceiling":
                 return math.ceil(answer)
             elif scale_mode == "floor":
                 return math.floor(answer)
             else:
-                return round(answer)
+                return math.trunc(answer)
         else:
             return round(answer, scale)
 
