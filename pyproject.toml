@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 [project]
 name = "microprojects"
 description = "MicroProjects in Python"
-version = "0.0.3"
+version = "0.1.0"
 keywords = ["microprojects", "ideas", "project ideas", "calculator"]
 readme = "README.md"
 license = "GPL-3.0-or-later"
