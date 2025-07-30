@@ -1,0 +1,60 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pytest-collect
+        name: 🧪 test · Validate test formatting
+        entry: pytest
+        language: system
+        types: [python]
+        args: ["--collect-only"]
+        pass_filenames: false
+        always_run: true
+      # STRICT
+      - id: pytest-fast
+        name: 🧪 test · Run fast tests
+        entry: pytest
+        language: system
+        types: [python]
+        args: []
+        pass_filenames: false
+        always_run: true
+  - repo: local
+    hooks:
+      - id: faq1
+        name: 🧪 FAQ  · Have you updated CHANGELOG?
+        entry: fish -Nc "for i in (seq 10); sleep 1; end;"
+        language: system
+        always_run: true
+      - id: faq2
+        name: 🧪 FAQ  · Have you updated version in pyproject.toml?
+        entry: fish -Nc "for i in (seq 10); sleep 1; end;"
+        language: system
+        always_run: true
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
+        name: "🔒 security · Detect hardcoded secrets"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.5
+    hooks:
+      - id: ruff-format
+        name: "🐍 python · Format with Ruff"
+      # STRICT
+      - id: ruff
+        args: [ '--fix', '--ignore=F401' ]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-executables-have-shebangs
+        name: "📁 filesystem/⚙️ exec · Verify shebang presence"
+      - id: check-shebang-scripts-are-executable
+        name: "📁 filesystem/⚙️ exec · Verify script permissions"
+      - id: check-case-conflict
+        name: "📁 filesystem/📝 names · Check case sensitivity"
+      - id: check-illegal-windows-names
+        name: "📁 filesystem/📝 names · Validate Windows filenames"
+      - id: check-symlinks
+        name: "📁 filesystem/🔗 symlink · Check symlink validity"
+      - id: destroyed-symlinks
+        name: "📁 filesystem/🔗 symlink · Detect broken symlinks"

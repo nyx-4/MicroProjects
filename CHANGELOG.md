@@ -15,7 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         - Security
  -->
 
-## [Unreleased]
+## [0.1.1]
+
+### Added
+- pre-commit hooks have beed added.
+- A new microproject `ngit` is added.
+- ArgParser is added for better CLI arguments support.
+- Added Sub-ArgParser for `init` sub-command.
+- Added `ngit init` that Initializes a new, empty repository.
+- Added `GitRepository` and some helper functions to assisst `ngit init`.
+- Added ngit/README stub.
+
+### Fixed
+- Minor fixes in calc.
+
+
+## [0.1.0]
 
 ### Changed
 - The min, max and sum functions are changed to accomodate single argument.

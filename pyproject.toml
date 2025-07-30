@@ -6,11 +6,11 @@ build-backend = "hatchling.build"
 [project]
 name = "microprojects"
 description = "MicroProjects in Python"
-version = "0.1.0"
+version = "0.1.1"
 keywords = ["microprojects", "ideas", "project ideas", "calculator"]
 readme = "README.md"
 license = "GPL-3.0-or-later"
-requires-python = ">= 3.8"
+requires-python = ">= 3.10"
 dependencies = []
 authors = [
   {name = "Nyx", email = "241463@students.au.edu.pk"},
@@ -25,11 +25,12 @@ Documentation = "https://github.com/nyx-4/MicroProjects/wiki"
 Repository = "https://github.com/nyx-4/MicroProjects"
 Issues = "https://github.com/nyx-4/MicroProjects/issues"
 Changelog = "https://github.com/nyx-4/MicroProjects/blob/main/CHANGELOG.md"
-DOWNLOAD = "https://example.com/abc.tar.gz"
+DOWNLOAD = "https://pypi.org/project/microprojects/#files"
 
 
 [project.scripts]
 calc = "microprojects:calc_main"
+ngit = "microprojects:ngit_main"
 
 
 [project.optional-dependencies]
@@ -45,3 +46,7 @@ addopts = "-q"
 
 [tool.hatch.build.targets.wheel]
 packages = ["microprojects"]
+
+
+[tool.ruff.lint]
+ignore = ["F401"]

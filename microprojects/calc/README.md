@@ -195,5 +195,5 @@ Taken verbatium from [math - perform mathematics calculations](https://fishshell
 
 
 ## License
-All the code here is licensed under [GPL 3.0](https://www.gnu.org/licenses/gpl-3.0.en.html). The content and tests taken fish-shell are rightfully theirs and covered under [fish license](https://github.com/fish-shell/fish-shell/?tab=License-1-ov-file)
+All my code here is licensed under [GPL 3.0](https://www.gnu.org/licenses/gpl-3.0.en.html). The content and tests taken fish-shell are rightfully theirs and covered under [fish license](https://github.com/fish-shell/fish-shell/?tab=License-1-ov-file)
 

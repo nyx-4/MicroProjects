@@ -153,10 +153,8 @@ def shunting_yard(token_stream: list, precedence: str) -> list:
                 output.append(operator_stack.pop())
             operator_stack.pop()
 
-        elif type(token) == str:  # v is operator
-            while len(operator_stack) and is_pop_needed(
-                token, operator_stack[-1]
-            ):
+        elif type(token) is str:  # v is operator
+            while len(operator_stack) and is_pop_needed(token, operator_stack[-1]):
                 output.append(operator_stack.pop())
             operator_stack.append(token)
 
@@ -191,17 +189,15 @@ def solve_rpn(rev_polish: list, precedence: str, known_lexemes: dict):
     idx: int = 0
 
     while idx < len(rev_polish):
-        if type(rev_polish[idx]) == str:
+        if type(rev_polish[idx]) is str:
             op_func = known_lexemes[rev_polish[idx]]
             rev_polish[idx - 2 : idx + 1] = [
                 op_func(rev_polish[idx - 2], rev_polish[idx - 1])
             ]
             idx -= 3  # Because three items are over-written
 
-        elif type(rev_polish[idx]) == list:
-            rev_polish[idx] = solve_func(
-                rev_polish[idx], precedence, known_lexemes
-            )
+        elif type(rev_polish[idx]) is list:
+            rev_polish[idx] = solve_func(rev_polish[idx], precedence, known_lexemes)
         idx += 1
 
     return rev_polish[0]

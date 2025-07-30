@@ -5,13 +5,13 @@ from microprojects.calc import analyzer
 
 def calc(expr, *, scale=6, scale_mode="default") -> int | float:
     def Min(*args):
-        return min(args) if type(args) == tuple else args
+        return min(args) if type(args) is tuple else args
 
     def Max(*args):
-        return max(args) if type(args) == tuple else args
+        return max(args) if type(args) is tuple else args
 
     def Sum(*args):
-        return sum(args) if type(args) == tuple else args
+        return sum(args) if type(args) is tuple else args
 
     lexemes: dict = {
         "^": lambda x, y: x**y,
@@ -80,7 +80,6 @@ def calc(expr, *, scale=6, scale_mode="default") -> int | float:
         "sinh": math.sinh,
         "tanh": math.tanh,
         "gamma": math.gamma,
-        "lgamma": math.lgamma,
         "lgamma": math.lgamma,
     }
 
