@@ -14,3 +14,4 @@ A simple calculator written in Python that _just_ works. The source code is avai
 - From CLI: `calc 5 + 10 x 3 - 2`
 - As Python module: `python -m microprojects.calc 5 + 10 x 3 - 2`
 - From Python source: `microprojects.calc("5 + 10 x 3 - 2")`
+
