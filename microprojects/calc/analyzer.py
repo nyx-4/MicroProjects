@@ -2,7 +2,7 @@ def lexical_analyzer(ch_stream: str, known_lexemes: dict = {}) -> list:
     """
     Reads the character stream and group the characters into meaningful sequences.
 
-    Arguments:
+    Parameters:
         ch_stream (str): str to perform lexical analysis on
         known_lexemes (dict): lexical_analyzer replaces all instances of key with value,
             all known functions and consts must be passed through it.

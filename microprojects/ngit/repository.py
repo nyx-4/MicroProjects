@@ -49,7 +49,7 @@ def repo_path(repo: GitRepository, *path: str) -> str:
     """Compute path under repo's git/ directory
 
     Parameters:
-        repo (GitRepository): The working git repository
+        repo (GitRepository): The current working git repository
         *path (str): The path in .git/
 
     Returns:
@@ -68,7 +68,7 @@ def repo_file(repo: GitRepository, *path: str, mkdir: bool = False) -> str:
     """Same as repo_path, but create dirname(*path) if absent.
 
     Parameters:
-        repo (GitRepository): The working git repository
+        repo (GitRepository): The current working git repository
         *path (str): The path in .git/
 
     Returns:
@@ -90,7 +90,7 @@ def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None
     """Same as repo_path, but mkdir *path if absent if mkdir.
 
     Parameters:
-        repo (GitRepository): The working git repository
+        repo (GitRepository): The current working git repository
         *path (str): The path in .git/
         mkdir (bool): Make directory if it doesn't exists
 
@@ -148,7 +148,7 @@ def repo_create(path: str, branch: str = "main", quiet: bool = False) -> GitRepo
     assert repo_dir(repo, "refs", "tags", mkdir=True)
 
     with open(repo_file(repo, "HEAD"), "w") as file:
-        file.write("ref: refs/heads/main\n")
+        file.write(f"ref: refs/heads/{branch}\n")
 
     # .git/description
     with open(repo_file(repo, "description"), "w") as file:
@@ -188,6 +188,15 @@ def repo_default_config() -> configparser.ConfigParser:
 
 
 def repo_find(path: str = ".", required: bool = True) -> GitRepository | None:
+    """Find the repository's root (the directory containing `.git/`)
+
+    Parameters:
+        path (str): The path from which to recurse backward. (default `$PWD`)
+        required (bool): raise an Exception if GitRepository was not found.
+
+    Returns:
+        GitRepository (GitRepository): First GitRepository that has `.git/` recursing backward
+    """
     path = os.path.realpath(path)
 
     if os.path.isdir(os.path.join(path, ".git")):

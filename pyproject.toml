@@ -47,6 +47,15 @@ addopts = "-q"
 [tool.hatch.build.targets.wheel]
 packages = ["microprojects"]
 
+[tool.ruff]
+line-length = 88
+
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true
+
 
 [tool.ruff.lint]
 ignore = ["F401"]

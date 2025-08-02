@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         - Security
  -->
 
+## [Unreleased]
+
+### Added
+- Added Sub-ArgParser for `cat-file` sub-command
+- Added Sub-ArgParser for `hash-object` sub-command
+- Added help section in ngit/README that sources from `ngit <command> --help`
+- Added support for GitBlobs
+- Added `ngit hash-object` that create a GitObject from a file
+- Added `ngit cat-file` that provides content stored in Repository's GitObjects
+- Added `CONTRIBUTING` guideline
+
+
+### Changed
+- Changed some ruff defaults in pyproject.toml
+
+
 ## [0.1.1]
 
 ### Added
@@ -69,6 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 <!-- Here comes the `git diff` of each version. -->
-[unreleased]: https://github.com/nyx-4/MicroProjects/compare/v0.0.3...HEAD
+[unreleased]: https://github.com/nyx-4/MicroProjects/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nyx-4/MicroProjects/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/nyx-4/MicroProjects/compare/v0.0.3...v0.1.0
 [0.0.3]: https://github.com/nyx-4/MicroProjects/compare/v0.0.1...v0.0.3
 [0.0.1]: https://github.com/nyx-4/MicroProjects/releases/tag/v0.0.1
