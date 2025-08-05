@@ -11,18 +11,18 @@ class GitObject(object):
     """A generic GitObject which will be specialized later.
 
     Attributes:
-        data (bytes): raw data stored in GitObject
+        data (bytes | dict): raw data stored in GitObject
         fmt (bytes): header format: `blob`, `commit`, `tag` or `tree`
     """
 
-    data: bytes = b""
+    data: bytes | dict = b""
     fmt: bytes = b""
 
-    def __init__(self, data: bytes | None = None) -> None:
+    def __init__(self, data: bytes | dict | None = None) -> None:
         """Loads the Object from the provided date or create a new one.
 
         Parameters:
-            data (bytes):
+            data (bytes | dict):
         """
         if data is not None:
             self.deserialize(data)
@@ -57,7 +57,7 @@ class GitBlob(GitObject):
         fmt (bytes): GitBlob uses "blob" in header format
     """
 
-    fmt: bytes = b"blob"
+    fmt = b"blob"
 
     def serialize(self) -> bytes:
         """Convert data into Git's representation of a blob

@@ -36,10 +36,9 @@ Git re-implementation in Python that is _perfectly compatible_ with with [Git SC
 
 ## Synopsis
 ```sh
-ngit init
-ngit add .
-ngit commit
+ngit [-h] <command> ...
 ```
+Also, see [Sub Commands](#sub-commands) for further help about each `<command>`.
 
 
 ## Description
@@ -77,7 +76,7 @@ pip install microprojects
 The supported subset of Git's commands are listed here.
 
 > [!Note]
-> This information is available at `ngit <command> --help` and `ngit help <command>` also.
+> This information is also available at `ngit <command> --help` and `ngit help <command>`.
 
 
 ### add

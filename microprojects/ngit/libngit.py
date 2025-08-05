@@ -39,7 +39,7 @@ def ngit_main() -> None:
     # ArgParser for ngit cat-file
     argsp_cat_file = arg_subparser.add_parser(  # cat-file
         "cat-file",
-        prog="ngit",
+        prog="ngit cat-file",
         description="Provide contents or details of repository objects",
         help="Provide contents or details of repository objects",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -47,8 +47,8 @@ def ngit_main() -> None:
     argsp_cat_file.add_argument(  # type
         "type",
         metavar="<type>",
-        choices=["blob", "commit", "tag", "tree"],
-        default="blob",
+        choices=["blob", "commit", "tag", "tree", None],
+        default=None,
         nargs="?",
         help="Specify the type of object to be read. Possible values are blob, commit, tag, and tree.",
     )
@@ -89,7 +89,7 @@ def ngit_main() -> None:
     # ArgParser for ngit hash-object
     argsp_hash_object = arg_subparser.add_parser(  # hash-object
         "hash-object",
-        prog="ngit",
+        prog="ngit hash-object",
         description="Compute object ID and optionally create an object from a file",
         help="Compute object ID and optionally create an object from a file",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -98,8 +98,8 @@ def ngit_main() -> None:
         "-t",
         "--type",
         metavar="<type>",
-        default=None,
-        choices=["blob", "commit", "tag", "tree", None],
+        default="blob",
+        choices=["blob", "commit", "tag", "tree"],
         help="Specify the type of object to be created, Possible values are blob, commit, tag, and tree.",
     )
     argsp_hash_object.add_argument(  # -w write
@@ -131,7 +131,7 @@ def ngit_main() -> None:
     # ArgParser for ngit init
     argsp_init = arg_subparser.add_parser(  # init
         "init",
-        prog="ngit",
+        prog="ngit init",
         description="Initialize a new, empty repository.",
         help="Initialize a new, empty repository.",
         formatter_class=argparse.RawTextHelpFormatter,
