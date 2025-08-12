@@ -67,8 +67,3 @@ def kvlm_serialize(kvlm: dict) -> bytes:
     raw_gitdata += b"\n" + kvlm[None]
 
     return raw_gitdata
-
-
-if __name__ == "__main__":
-    with open("/home/KaraKurt/Documents/tmp/Sudoku-Solver/no-msg.git", "rb") as f:
-        print(kvlm_serialize(kvlm_parse(f.read())).decode(), end="")

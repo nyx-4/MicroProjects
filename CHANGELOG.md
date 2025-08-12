@@ -26,9 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `ngit cat-file` that provides content stored in Repository's GitObjects
 - Added `CONTRIBUTING` guideline
 - Added a `kvlm_parser` and `kvlm_serializer` to parse and write git commits and tags
+- Added Sub-ArgParser for `log` sub-command
+- Added `ngit log`, git-inspired deviating from official WYAG.
 
 ### Changed
 - Changed some ruff defaults in pyproject.toml
+- The GitObject's sub-classes are moved to `object.py`
 
 
 ## [0.1.1]

@@ -5,6 +5,7 @@ import sys  # to access `sys.argv`
 
 
 from microprojects.ngit.repository import GitRepository, repo_file
+from microprojects.ngit.kvlm import kvlm_serialize, kvlm_parse
 
 
 class GitObject(object):
@@ -76,6 +77,35 @@ class GitBlob(GitObject):
         self.data = data
 
 
+class GitCommit(GitObject):
+    """
+
+    Attributes:
+        data (dict):
+        fmt (bytes):
+    """
+
+    fmt = b"commit"
+
+    def serialize(self) -> bytes:
+        return kvlm_serialize(self.data)
+
+    def deserialize(self, kvlm: bytes) -> None:
+        self.data = kvlm_parse(kvlm)
+
+    def init(self) -> None:
+        """Initialize an empty dict, because otherwise all objects would share same dict"""
+        self.data = dict()
+
+
+class GitTag(GitObject):
+    """"""
+
+
+class GitTree(GitObject):
+    """"""
+
+
 def object_read(repo: GitRepository, sha1: str) -> GitObject:
     """Read the object stored in `.git/objects/$sha1`, decompress and then deserialize data
 
@@ -108,9 +138,12 @@ def object_read(repo: GitRepository, sha1: str) -> GitObject:
         match fmt:
             case b"blob":
                 return GitBlob(raw_file[idx_null + 1 :])
-            # case b"commit":   return GitCommit(raw_file[idx_null:])
-            # case b"tag":      return GitTag(raw_file[idx_null:])
-            # case b"tree":     return GitTree(raw_file[idx_null:])
+            case b"commit":
+                return GitCommit(raw_file[idx_null + 1 :])
+            case b"tag":
+                return GitTag(raw_file[idx_null + 1 :])
+            case b"tree":
+                return GitTree(raw_file[idx_null + 1 :])
             case _:
                 raise Exception(f"Unknown type {fmt.decode('ascii')} for object {sha1}")
 
@@ -151,12 +184,12 @@ def object_hash(file, fmt: bytes, repo: GitRepository | None = None) -> str:
     match fmt:
         case b"blob":
             obj = GitBlob(data)
-        # case b"commit":
-        #     obj = GitCommit(data)
-        # case b"tag":
-        #     obj = GitTag(data)
-        # case b"tree":
-        #     obj = GitTree(data)
+        case b"commit":
+            obj = GitCommit(data)
+        case b"tag":
+            obj = GitTag(data)
+        case b"tree":
+            obj = GitTree(data)
         case _:
             raise Exception(f"Unknown type {fmt.decode('ascii')} for object")
 
@@ -187,3 +220,19 @@ def cat_file(repo: GitRepository, object: str, flag: tuple, fmt: str | None) -> 
         print(len(obj.data.decode()))
     else:  # pretty_print is Default
         print(obj.data.decode())
+
+
+class shortify_hash:
+    """Returns a shortened version of sha1, atleast of length 7, that identifies
+    the object uniquely
+    """
+
+    repo: GitRepository
+
+    def __init__(self, repo: GitRepository):
+        self.repo = repo
+
+    def __call__(self, sha1: str) -> str:
+        """Returns short hash"""
+
+        return sha1[:7]

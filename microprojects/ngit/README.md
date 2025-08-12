@@ -137,6 +137,41 @@ options:
 ```
 
 ### log
+```sh
+usage: ngit log [-h] [--decorate short|full|auto|no] [--log-size] [-n MAX_COUNT] [--skip SKIP]
+                [--after AFTER] [--before BEFORE] [--min-parents MIN_PARENTS] [--max-parents MAX_PARENTS]
+                [--no-min-parents] [--no-max-parents] [--merges] [--no-merges] [--format FORMAT_STR]
+                [--date FORMAT] [commits]
+
+Shows the commit logs
+
+positional arguments:
+  commits               Commit to start at.
+
+options:
+  -h, --help            show this help message and exit
+  --decorate short|full|auto|no
+                        Print out the ref names of any commits that are shown
+  --log-size            Include a line "log size <number>" in the output for each commit
+  -n, --max-count MAX_COUNT
+                        Limit the number of commits to output.
+  --skip SKIP           Skip number commits before starting to show the commit output.
+  --after, --since, --since-as-filter AFTER
+                        Show all commits more recent than a specific date.
+  --before, --until BEFORE
+                        Show commits older than a specific date.
+  --min-parents MIN_PARENTS
+                        Show only commits which have at least that many parent commits.
+  --max-parents MAX_PARENTS
+                        Show only commits which have at most that many parent commits.
+  --no-min-parents      Show only commits which have at least that many parent commits.
+  --no-max-parents      Show only commits which have at most that many parent commits.
+  --merges              Print only merge commits. This is exactly the same as --min-parents=2.
+  --no-merges           Do not print commits with more than one parent. This is exactly the same as --max-parents=1.
+  --format, --pretty FORMAT_STR
+                        Pretty-print the contents of the commit logs in a given format
+  --date FORMAT         The format to use for dates in ngit log
+```
 ### ls-files
 ### ls-tree
 ### rev-parse

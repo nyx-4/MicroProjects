@@ -13,7 +13,8 @@ import sys  # to access `sys.argv`
 
 
 from microprojects.ngit.repository import GitRepository, repo_create, repo_find
-from microprojects.ngit.object import object_hash, cat_file
+from microprojects.ngit.object import object_hash, cat_file, object_find
+from microprojects.ngit.log import print_logs
 
 
 def ngit_main() -> None:
@@ -158,6 +159,114 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit log
+    argsp_log = arg_subparser.add_parser(  # log
+        "log",
+        prog="ngit log",
+        description="Shows the commit logs",
+        help="Shows the commit logs",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_log.add_argument(  # --decorate
+        "--decorate",
+        default="short",
+        choices=["short", "full", "auto", "no"],
+        metavar="short|full|auto|no",
+        help="Print out the ref names of any commits that are shown",
+    )
+    argsp_log.add_argument(  # --log-size
+        "--log-size",
+        action="store_true",
+        help='Include a line "log size <number>" in the output for each commit',
+    )
+    argsp_log.add_argument(  # -n --max-count
+        "-n",
+        "--max-count",
+        default=-1,
+        type=int,
+        help="Limit the number of commits to output.",
+    )
+    argsp_log.add_argument(  # --skip
+        "--skip",
+        type=int,
+        default=0,
+        help="Skip number commits before starting to show the commit output.",
+    )
+    argsp_log.add_argument(  # --after --since --since-as-filter
+        "--after",
+        "--since",
+        "--since-as-filter",
+        dest="after",
+        help="Show all commits more recent than a specific date.",
+    )
+    argsp_log.add_argument(  # --before --until
+        "--before",
+        "--until",
+        dest="before",
+        help="Show commits older than a specific date.",
+    )
+    argsp_log.add_argument(  # --min-parents
+        "--min-parents",
+        type=int,
+        default=0,
+        help="Show only commits which have at least that many parent commits.",
+    )
+    argsp_log.add_argument(  # --max-parents
+        "--max-parents",
+        type=int,
+        default=-1,
+        help="Show only commits which have at most that many parent commits.",
+    )
+    argsp_log.add_argument(  # --no-min-parents
+        "--no-min-parents",
+        action="store_const",
+        const=0,
+        dest="min_parents",
+        help="Show only commits which have at least that many parent commits.",
+    )
+    argsp_log.add_argument(  # --no-max-parents
+        "--no-max-parents",
+        action="store_const",
+        const=-1,
+        dest="max_parents",
+        help="Show only commits which have at most that many parent commits.",
+    )
+    argsp_log.add_argument(  # --merges
+        "--merges",
+        action="store_const",
+        const=2,
+        dest="min_parents",
+        help="Print only merge commits. This is exactly the same as --min-parents=2.",
+    )
+    argsp_log.add_argument(  # --no-merges
+        "--no-merges",
+        action="store_const",
+        const=1,
+        dest="max_parents",
+        help="Do not print commits with more than one parent. This is exactly the same as --max-parents=1.",
+    )
+    argsp_log.add_argument(  # --format --pretty
+        "--format",
+        "--pretty",
+        default="medium",
+        dest="format_str",
+        help="Pretty-print the contents of the commit logs in a given format",
+    )
+    argsp_log.add_argument(  # --date
+        "--date",
+        choices=["relative", "local", "iso", "iso8601", "iso-strict", "iso8601-strict"]
+        + ["rfc", "rfc2822", "short", "raw", "unix", "human", "default"],
+        default="default",
+        dest="date_fmt",
+        metavar="FORMAT",
+        help="The format to use for dates in ngit log",
+    )
+    argsp_log.add_argument(  # commits
+        "commits",
+        default="HEAD",
+        nargs="?",
+        help="Commit to start at.",
+    )
+
     # ArgParser for ngit ls-files
     # ArgParser for ngit ls-tree
     # ArgParser for ngit rev-parse
@@ -258,7 +367,25 @@ def cmd_init(args: argparse.Namespace) -> None:
 
 
 def cmd_log(args: argparse.Namespace) -> None:
-    pass
+    repo: GitRepository = repo_find(required=True)
+
+    # TODO: Add support for common format_str
+
+    print_logs(
+        repo,
+        object_find(repo, args.commits),
+        # kwargs to avoid ambiguity
+        decorate=args.decorate,  # TODO
+        log_size=args.log_size,  # TODO
+        max_count=args.max_count,
+        skip=args.skip,
+        after=args.after,
+        before=args.before,
+        min_parents=args.min_parents,
+        max_parents=args.max_parents,
+        format_str=args.format_str,
+        date_fmt=args.date_fmt,
+    )
 
 
 def cmd_ls_files(args: argparse.Namespace) -> None:
@@ -287,7 +414,3 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 def cmd_tag(args: argparse.Namespace) -> None:
     pass
-
-
-if __name__ == "__main__":
-    ngit_main()
