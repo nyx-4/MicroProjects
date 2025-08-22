@@ -8,6 +8,7 @@ from microprojects.ngit.repository import GitRepository
 def print_logs(
     repo: GitRepository,
     sha1: str,
+    *,
     decorate: str,
     log_size: bool,
     max_count: int,

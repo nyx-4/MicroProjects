@@ -16,6 +16,8 @@ from microprojects.ngit.repository import GitRepository, repo_create, repo_find
 from microprojects.ngit.object import object_hash, cat_file, object_find
 from microprojects.ngit.log import print_logs
 
+from microprojects.ngit.ls_tree import ls_tree
+
 
 def ngit_main() -> None:
     # The ngit's main (arg_)parser
@@ -268,7 +270,76 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit ls-files
+
     # ArgParser for ngit ls-tree
+    argsp_ls_tree = arg_subparser.add_parser(  # ls -tree
+        "ls-tree",
+        prog="ngit",
+        description="List the contents of a tree object",
+        help="List the contents of a tree object",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    argsp_ls_tree.add_argument(  # --format --pretty
+        "--format",
+        "--pretty",
+        default="%(objectmode) %(objecttype) %(objectname)\t%(path)",
+        dest="format_str",
+        help="Pretty-print the contents of the tree in a given format",
+    )
+    argsp_ls_tree.add_argument(  # -d
+        "-d",
+        dest="only_trees",
+        action="store_true",
+        help="Show only the named tree entry itself, not its children.",
+    )
+    argsp_ls_tree.add_argument(  # -r
+        "-r",
+        dest="recurse_trees",
+        action="store_true",
+        help="Recurse into sub-trees.",
+    )
+    argsp_ls_tree.add_argument(  # -t
+        "-t",
+        dest="always_trees",
+        action="store_true",
+        help="Show tree entries even when going to recurse them.",
+    )
+    argsp_ls_tree.add_argument(  # -l --long
+        "-l",
+        "--long",
+        action="store_const",
+        const="%(objectmode) %(objecttype) %(objectname) %(objectsize:padded)\t%(path)",
+        dest="format_str",
+        help="Show object size of blob (file) entries.",
+    )
+    argsp_ls_tree.add_argument(  # -z
+        "-z",
+        dest="null_terminator",
+        action="store_true",
+        help="\0 line termination on output and do not quote filenames.",
+    )
+    argsp_ls_tree.add_argument(  # --name-only --name-status
+        "--name-only",
+        "--name-status",
+        action="store_const",
+        const="%(path)",
+        dest="format_str",
+        help="List only filenames, one per line.",
+    )
+    argsp_ls_tree.add_argument(  # --object-only
+        "--object-only",
+        action="store_const",
+        const="%(objectname)",
+        dest="format_str",
+        help="List only names of the objects, one per line.",
+    )
+    argsp_ls_tree.add_argument(  # tree
+        "tree",
+        default="HEAD",
+        nargs="?",
+        help="Tree(-ish) object to start at.",
+    )
+
     # ArgParser for ngit rev-parse
     # ArgParser for ngit rm
     # ArgParser for ngit show-ref
@@ -374,7 +445,6 @@ def cmd_log(args: argparse.Namespace) -> None:
     print_logs(
         repo,
         object_find(repo, args.commits),
-        # kwargs to avoid ambiguity
         decorate=args.decorate,  # TODO
         log_size=args.log_size,  # TODO
         max_count=args.max_count,
@@ -393,7 +463,17 @@ def cmd_ls_files(args: argparse.Namespace) -> None:
 
 
 def cmd_ls_tree(args: argparse.Namespace) -> None:
-    pass
+    repo: GitRepository = repo_find(required=True)
+
+    ls_tree(
+        repo,
+        object_find(repo, args.tree, b"tree"),
+        only_trees=args.only_trees,
+        recurse_trees=args.recurse_trees,
+        always_trees=args.always_trees,
+        null_terminator=args.null_terminator,
+        format_str=args.format_str,
+    )
 
 
 def cmd_rev_parse(args: argparse.Namespace) -> None:

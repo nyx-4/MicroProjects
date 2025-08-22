@@ -37,11 +37,8 @@ First, you need to get the source-code on your local machine (or favourite cloud
 4. Install Python dependencies listed in `requirements.txt`
 5. Open the directory named `MicroProjects` in your favourite code editor. For [VS Code](https://code.visualstudio.com/), it is `code MicroProjects`.
 
-
 ## Identify Problem to solve
-Next identify a problem worth solving and open an issue (or feature request).
-
-<iframe width="853" height="480" src="https://www.youtube.com/embed/635dv9i3RhM" title="Browse available issues and select one to work on" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+Next identify a problem worth solving and open an issue (or feature request). This [Codecademy - YouTube](https://youtu.be/635dv9i3RhM) video may help visual listeners.
 
 ### Find a new bug or want a new Feature
 Then open an [issue](https://github.com/nyx-4/MicroProjects/issues/new/choose). Make sure to add enough information about bug/feature and respond to queries of other in respectful manner.

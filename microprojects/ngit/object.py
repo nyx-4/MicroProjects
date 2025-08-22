@@ -6,17 +6,18 @@ import sys  # to access `sys.argv`
 
 from microprojects.ngit.repository import GitRepository, repo_file
 from microprojects.ngit.kvlm import kvlm_serialize, kvlm_parse
+from microprojects.ngit.tree import tree_serialize, tree_parse
 
 
 class GitObject(object):
     """A generic GitObject which will be specialized later.
 
     Attributes:
-        data (bytes | dict): raw data stored in GitObject
+        data (bytes | dict | list): raw data stored in GitObject
         fmt (bytes): header format: `blob`, `commit`, `tag` or `tree`
     """
 
-    data: bytes | dict = b""
+    data: bytes | dict | list = b""
     fmt: bytes = b""
 
     def __init__(self, data: bytes | dict | None = None) -> None:
@@ -98,12 +99,25 @@ class GitCommit(GitObject):
         self.data = dict()
 
 
-class GitTag(GitObject):
+class GitTag(GitCommit):
     """"""
+
+    fmt: bytes = b"tag"
 
 
 class GitTree(GitObject):
     """"""
+
+    fmt = b"tree"
+
+    def serialize(self) -> bytes:
+        return tree_serialize(self.data)
+
+    def deserialize(self, data: bytes) -> None:
+        self.data = tree_parse(data)
+
+    def init(self) -> None:
+        self.data = list()
 
 
 def object_read(repo: GitRepository, sha1: str) -> GitObject:
@@ -229,7 +243,7 @@ class shortify_hash:
 
     repo: GitRepository
 
-    def __init__(self, repo: GitRepository):
+    def __init__(self, repo: GitRepository) -> None:
         self.repo = repo
 
     def __call__(self, sha1: str) -> str:

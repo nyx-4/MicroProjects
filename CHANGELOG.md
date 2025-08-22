@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `kvlm_parser` and `kvlm_serializer` to parse and write git commits and tags
 - Added Sub-ArgParser for `log` sub-command
 - Added `ngit log`, git-inspired deviating from official WYAG.
+- Added `ngit ls-tree`, list the contents of a tree(-ish) object
+
 
 ### Changed
 - Changed some ruff defaults in pyproject.toml
