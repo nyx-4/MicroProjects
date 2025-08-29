@@ -6,17 +6,18 @@ import argparse  # ngit is CLI tool, so we need to parse CLI args
 # from fnmatch import fnmatch  # to match .gitignore patterns like *.txt
 # import hashlib  # ngit uses SHA-1 hash extensively
 # import math
-# import os  # os and os.path provide some nice filesystem abstraction routines
+import os  # os and os.path provide some nice filesystem abstraction routines
+
 # import re  # just a little-bit of RegEx
 import sys  # to access `sys.argv`
 # import zlib  # to compress & decompress files
 
-
-from microprojects.ngit.repository import GitRepository, repo_create, repo_find
-from microprojects.ngit.object import object_hash, cat_file, object_find
+from microprojects.ngit.object import GitObject, GitCommit, GitTree
+from microprojects.ngit.repository import GitRepository, repo_find_f
+from microprojects.ngit.object_utils import object_find, object_read
+from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
+from microprojects.ngit.ngit_utils import checkout
 from microprojects.ngit.log import print_logs
-
-from microprojects.ngit.ls_tree import ls_tree
 
 
 def ngit_main() -> None:
@@ -86,7 +87,41 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit check-ignore
+
     # ArgParser for ngit checkout
+    argsp_checkout = arg_subparser.add_parser(  # checkout
+        "checkout",
+        prog="ngit",
+        description="Switch branches or restore working tree files",
+        help="Switch branches or restore working tree files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    argsp_checkout.add_argument(  # -q --quiet
+        "-q",
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Quiet, suppress feedback messages",
+    )
+    argsp_checkout.add_argument(  # -f --force
+        "-f",
+        "--force",
+        dest="force",
+        action="store_true",
+        help="When switching branches, throw away local changes and any untracked files or directories",
+    )
+    argsp_checkout.add_argument(  # --dest
+        "--dest",
+        default=None,
+        help="checkout to <dest> instead of current repository, provided <dest> is empty directory",
+    )
+    argsp_checkout.add_argument(  # branch
+        "branch",
+        nargs="?",
+        default=None,
+        help="The branch or commit or tree to checkout",
+    )
+
     # ArgParser for ngit commit
 
     # ArgParser for ngit hash-object
@@ -272,7 +307,7 @@ def ngit_main() -> None:
     # ArgParser for ngit ls-files
 
     # ArgParser for ngit ls-tree
-    argsp_ls_tree = arg_subparser.add_parser(  # ls -tree
+    argsp_ls_tree = arg_subparser.add_parser(  # ls-tree
         "ls-tree",
         prog="ngit",
         description="List the contents of a tree object",
@@ -316,7 +351,7 @@ def ngit_main() -> None:
         "-z",
         dest="null_terminator",
         action="store_true",
-        help="\0 line termination on output and do not quote filenames.",
+        help="\\0 line termination on output and do not quote filenames.",
     )
     argsp_ls_tree.add_argument(  # --name-only --name-status
         "--name-only",
@@ -385,7 +420,7 @@ def main(args: argparse.Namespace) -> None:
         case "tag":
             cmd_tag(args)
         case _:
-            print(f"Bad command '{args.command}'.")
+            print(f"WARNING: bad command '{args.command}'.")
 
 
 # Bridge functions for CLI argument processing.
@@ -396,9 +431,18 @@ def cmd_add(args: argparse.Namespace) -> None:
 
 
 def cmd_cat_file(args: argparse.Namespace) -> None:
-    repo: GitRepository = repo_find(required=True)
-    flags: tuple = (args.only_error, args.pretty_print, args.only_type, args.only_size)
-    cat_file(repo, args.object, fmt=args.type, flag=flags)
+    repo: GitRepository = repo_find_f()
+
+    # fmt: off
+    flag: int = (
+        1 if args.only_error else
+        2 if args.only_type else
+        3 if args.only_size else
+        4 # default flag is 4
+    )
+    # fmt: on
+
+    cat_file(repo, args.object, fmt=args.type, flag=flag)
 
 
 def cmd_check_ignore(args: argparse.Namespace) -> None:
@@ -406,7 +450,33 @@ def cmd_check_ignore(args: argparse.Namespace) -> None:
 
 
 def cmd_checkout(args: argparse.Namespace) -> None:
-    pass
+    repo: GitRepository = repo_find_f()
+
+    if args.branch is None:
+        # TODO: if args.branch is not specified, default to current branch
+        pass
+
+    obj: GitObject = object_read(repo, object_find(repo, args.branch))
+
+    if type(obj) is GitCommit:  # read `tree` if commit
+        obj = object_read(repo, object_find(repo, obj.data[b"tree"][0].decode()))
+
+    assert type(obj) is GitTree
+
+    if args.dest is None:  # if --dest not specified, use current repo
+        # TODO: don't delete files in .gitignore
+        # TODO: raise Exception if working tree is not clean
+        args.dest = repo.worktree
+
+    if os.path.exists(args.dest):
+        if not os.path.isdir(args.dest):
+            raise NotADirectoryError(f"fatal: {args.dest} is not a directory")
+        if args.force is False and os.listdir(args.dest):
+            raise FileExistsError(f"{args.dest} is not empty, use -f to overwrite")
+    else:
+        os.makedirs(args.dest)
+
+    checkout(repo, obj, os.path.realpath(args.dest), args.quiet)
 
 
 def cmd_commit(args: argparse.Namespace) -> None:
@@ -415,18 +485,18 @@ def cmd_commit(args: argparse.Namespace) -> None:
 
 def cmd_hash_object(args: argparse.Namespace) -> None:
     if args.write:
-        repo: GitRepository | None = repo_find()
+        repo: GitRepository | None = repo_find_f()
     else:
         repo = None
 
     if args.stdin:
-        print(object_hash(sys.stdin, args.type.encode(), repo))
+        print(object_hash(repo, sys.stdin, args.type.encode()))
 
     # if args.stdin_path is set, then read path from sys.stdin
     # else use paths passed in args.path
     for path in sys.stdin if args.stdin_paths else args.path:
         with open(path) as fd:
-            print(object_hash(fd, args.type.encode(), repo))
+            print(object_hash(repo, fd, args.type.encode()))
 
 
 def cmd_help(args: argparse.Namespace) -> None:
@@ -438,7 +508,7 @@ def cmd_init(args: argparse.Namespace) -> None:
 
 
 def cmd_log(args: argparse.Namespace) -> None:
-    repo: GitRepository = repo_find(required=True)
+    repo: GitRepository = repo_find_f()
 
     # TODO: Add support for common format_str
 
@@ -463,7 +533,7 @@ def cmd_ls_files(args: argparse.Namespace) -> None:
 
 
 def cmd_ls_tree(args: argparse.Namespace) -> None:
-    repo: GitRepository = repo_find(required=True)
+    repo: GitRepository = repo_find_f()
 
     ls_tree(
         repo,

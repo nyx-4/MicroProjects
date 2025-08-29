@@ -1,8 +1,9 @@
 from datetime import datetime, timezone, timedelta
-import re
 
-from microprojects.ngit.object import object_read, GitCommit, shortify_hash
+
+from microprojects.ngit.object_utils import object_read, shortify_hash
 from microprojects.ngit.repository import GitRepository
+from microprojects.ngit.object import GitCommit, GitObject
 
 
 def print_logs(
@@ -39,7 +40,12 @@ def print_logs(
     Returns:
         None (None): print_log just has side-effects, no return value
     """
-    frontier_commits: list[tuple[GitCommit, str]] = [(object_read(repo, sha1), sha1)]
+    obj: GitObject = object_read(repo, sha1)
+
+    if type(obj) is not GitCommit:
+        raise TypeError(f"fatal: {sha1} do not point to valid GitCommit")
+
+    frontier_commits: list[tuple[GitCommit, str]] = [(obj, sha1)]
     explored_commits: set[str] = {sha1}
 
     while frontier_commits:
@@ -54,7 +60,10 @@ def print_logs(
         for commit in cur_commit.data.get(b"parent", []):
             commit = commit.decode()
             if commit not in explored_commits:
-                frontier_commits.append((object_read(repo, commit), commit))
+                obj = object_read(repo, commit)
+                if type(obj) is not GitCommit:
+                    raise TypeError(f"fatal: {commit} do not point to valid GitCommit")
+                frontier_commits.append((obj, commit))
                 explored_commits.add(commit)
 
         # skip if min_parent or max_parents constraints are not followed
@@ -164,9 +173,6 @@ def prettify(
     format_str = format_str.replace(
         "%aD", fmt_date(kvlm.get(b"author", []), _ftime("rfc2822"))
     )
-    format_str = format_str.replace(
-        "%ar", fmt_date(kvlm.get(b"author", []), _ftime("relative"))
-    )
     format_str = format_str.replace("%at", longified(author[2]))
     format_str = format_str.replace(
         "%ai", fmt_date(kvlm.get(b"author", []), _ftime("iso8601"))
@@ -176,9 +182,6 @@ def prettify(
     )
     format_str = format_str.replace(
         "%as", fmt_date(kvlm.get(b"author", []), _ftime("short"))
-    )
-    format_str = format_str.replace(
-        "%ah", fmt_date(kvlm.get(b"author", []), _ftime("human"))
     )
 
     # Committer information
@@ -198,9 +201,6 @@ def prettify(
     format_str = format_str.replace(
         "%cD", fmt_date(kvlm.get(b"committer", []), _ftime("rfc2822"))
     )
-    format_str = format_str.replace(
-        "%cr", fmt_date(kvlm.get(b"committer", []), _ftime("relative"))
-    )
     format_str = format_str.replace("%ct", longified(committer[2]))
     format_str = format_str.replace(
         "%ci", fmt_date(kvlm.get(b"committer", []), _ftime("iso8601"))
@@ -210,9 +210,6 @@ def prettify(
     )
     format_str = format_str.replace(
         "%cs", fmt_date(kvlm.get(b"committer", []), _ftime("short"))
-    )
-    format_str = format_str.replace(
-        "%ch", fmt_date(kvlm.get(b"committer", []), _ftime("human"))
     )
 
     commit_msg: tuple = kvlm.get(None, b"\n").decode().partition("\n")
@@ -251,8 +248,6 @@ def _ftime(fmt: str) -> str:
     """Convert human-readable/standard time formats to one used by `strftime`"""
     fmt = fmt.lower()
     match fmt:
-        case "relative":
-            return ""
         case "local":
             return ""
         case "iso" | "iso8601":

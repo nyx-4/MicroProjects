@@ -27,7 +27,7 @@ class GitRepository(object):
 
         # if .git/ do not exists, raise Exception
         if not (force or os.path.isdir(self.git_dir)):
-            raise Exception(f"fatal: not a git repository: {path}")
+            raise TypeError(f"fatal: not a git repository: {path}")
 
         # Read configuration files in .git/config
         self.conf = configparser.ConfigParser()
@@ -37,12 +37,12 @@ class GitRepository(object):
         if conf_file and os.path.exists(conf_file):
             self.conf.read([conf_file])
         elif not force:
-            raise Exception("Configuration file missing")
+            raise FileNotFoundError("Configuration file missing")
 
         if not force:
-            vers: int = int(self.conf.get("core", "repositoryformatversion"))
-            if vers != 0:
-                raise Exception(f"Unsupported repositoryformatversion: {vers}")
+            ver: int = int(self.conf.get("core", "repositoryformatversion"))
+            if ver != 0:
+                raise NotImplementedError(f"unsupported repositoryformatversion: {ver}")
 
 
 def repo_path(repo: GitRepository, *path: str) -> str:
@@ -65,7 +65,7 @@ def repo_path(repo: GitRepository, *path: str) -> str:
 
 
 def repo_file(repo: GitRepository, *path: str, mkdir: bool = False) -> str:
-    """Same as repo_path, but create dirname(*path) if absent.
+    """Same as repo_path, but create dirname(*path) if absent
 
     Parameters:
         repo (GitRepository): The current working git repository
@@ -83,11 +83,11 @@ def repo_file(repo: GitRepository, *path: str, mkdir: bool = False) -> str:
     if repo_dir(repo, *path[:-1], mkdir=mkdir):
         return repo_path(repo, *path)
     else:
-        raise Exception(f"{path} do not exists and mkdir not specified")
+        raise FileNotFoundError(f"{path} do not exists and mkdir not specified")
 
 
 def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None:
-    """Same as repo_path, but mkdir *path if absent if mkdir.
+    """Same as repo_path, but mkdir *path if absent if mkdir
 
     Parameters:
         repo (GitRepository): The current working git repository
@@ -95,7 +95,7 @@ def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None
         mkdir (bool): Make directory if it doesn't exists
 
     Returns:
-        path (str): The *path, but prefixed with $worktree/.git and delimited properly.  \n
+        path (str): The *path, but prefixed with $worktree/.git and delimited properly  \n
             Returns **None** if *path do not exist, and mkdir is not specified.
 
     Examples:
@@ -110,7 +110,7 @@ def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None
         if os.path.isdir(git_path):
             return git_path
         else:
-            raise Exception(f"Not a directory {path}")
+            raise NotADirectoryError(f"Not a directory {path}")
 
     elif mkdir:
         os.makedirs(git_path)
@@ -119,83 +119,16 @@ def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None
         return None
 
 
-def repo_create(path: str, branch: str = "main", quiet: bool = False) -> GitRepository:
-    """Create a new repository at path.
+def repo_find(path: str = ".", *, required: bool = True) -> GitRepository | None:
+    """Find the repository's root (the directory containing `.git/`),
+    use `repo_find_f` to avoid typing warnings because of `None`
 
     Parameters:
-        path (str): The path to the worktree of GitRepository
-        branch (str): The initial branch in the newly created repository.
-        quiet (bool): Only print error and warning messages, if True
+        path (str): The path from which to recurse upward (default `$PWD`)
+        required (bool): raise an Exception if no GitRepository found
 
     Returns:
-        repo (GitRepository): The GitRepository just created
-    """
-    repo: GitRepository = GitRepository(path, force=True)
-
-    # First, we make sure the path either doesn't exist
-    #   or contain empty .git directory
-    if os.path.exists(repo.worktree):
-        if not os.path.isdir(repo.worktree):
-            raise Exception(f"fatal: {path} is not a directory")
-        if os.path.isdir(repo.git_dir) and os.listdir(repo.git_dir):
-            raise Exception(f"{path} is not empty")
-    else:
-        os.makedirs(repo.worktree)
-
-    assert repo_dir(repo, "objects", mkdir=True)
-    assert repo_dir(repo, "branches", mkdir=True)
-    assert repo_dir(repo, "refs", "heads", mkdir=True)
-    assert repo_dir(repo, "refs", "tags", mkdir=True)
-
-    with open(repo_file(repo, "HEAD"), "w") as file:
-        file.write(f"ref: refs/heads/{branch}\n")
-
-    # .git/description
-    with open(repo_file(repo, "description"), "w") as file:
-        file.write(
-            "Unnamed repository; edit this file 'description' to name the repository.\n"
-        )
-
-    with open(repo_file(repo, "config"), "w") as file:
-        config = repo_default_config()
-        config.write(file)
-
-    return repo
-
-
-def repo_default_config() -> configparser.ConfigParser:
-    """Generates default configuration for repository
-
-    Returns:
-        conf_parser (ConfigParser):
-            Simple config defaults with a single section (`[core]`) and three fields
-    """
-    conf_parser = configparser.ConfigParser()
-    conf_parser.add_section("core")
-
-    # 0 means the initial format, 1 the same with extensions.
-    # If > 1, git will panic; wyag will only accept 0.
-    conf_parser.set("core", "repositoryformatversion", "0")
-
-    # enable/disable tracking of file modes (permissions) changes
-    conf_parser.set("core", "filemode", "false")
-
-    # indicates that this repository has a worktree, false sets worktree `..`
-    # Git supports an optional worktree, ngit does not
-    conf_parser.set("core", "bare", "false")
-
-    return conf_parser
-
-
-def repo_find(path: str = ".", required: bool = True) -> GitRepository | None:
-    """Find the repository's root (the directory containing `.git/`)
-
-    Parameters:
-        path (str): The path from which to recurse backward. (default `$PWD`)
-        required (bool): raise an Exception if GitRepository was not found.
-
-    Returns:
-        GitRepository (GitRepository): First GitRepository that has `.git/` recursing backward
+        GitRepository (GitRepository): First directory that has `.git/` recursing upward
     """
     path = os.path.realpath(path)
 
@@ -207,8 +140,13 @@ def repo_find(path: str = ".", required: bool = True) -> GitRepository | None:
     if parent == path:
         # Base-case i.e., os.path.join("/", "..") is "/"
         if required:
-            raise Exception("fatal: not a git repository")
+            raise TypeError(f"fatal: not a git repository: {path}")
         else:
             return None
 
-    return repo_find(parent, required)
+    return repo_find(parent, required=required)
+
+
+def repo_find_f(path: str = ".") -> GitRepository:
+    """Helper function that do not return None, to avoid typing hell"""
+    return repo_find(path, required=True)  # type: ignore

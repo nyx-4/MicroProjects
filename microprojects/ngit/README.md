@@ -80,6 +80,7 @@ The supported subset of Git's commands are listed here.
 
 
 ### add
+
 ### cat-file
 ```sh
 usage: ngit [-h] [-e | -p | -t | -s] [<type>] object
@@ -99,8 +100,25 @@ options:
 ```
 
 ### check-ignore
+
 ### checkout
+```sh
+usage: ngit [-h] [-q] [-f] [--dest DEST] [branch]
+
+Switch branches or restore working tree files
+
+positional arguments:
+  branch       The branch or commit or tree to checkout
+
+options:
+  -h, --help   show this help message and exit
+  -q, --quiet  Quiet, suppress feedback messages
+  -f, --force  When switching branches, throw away local changes and any untracked files or directories
+  --dest DEST  checkout to <dest> instead of current repository, provided <dest> is empty directory
+```
+
 ### commit
+
 ### hash-object
 ```sh
 usage: ngit [-h] [-t <type>] [-w] [--stdin-paths] [-i] [path ...]
@@ -172,8 +190,31 @@ options:
                         Pretty-print the contents of the commit logs in a given format
   --date FORMAT         The format to use for dates in ngit log
 ```
+
 ### ls-files
 ### ls-tree
+```sh
+usage: ngit [-h] [--format FORMAT_STR] [-d] [-r] [-t] [-l] [-z] [--name-only] [--object-only] [tree]
+
+List the contents of a tree object
+
+positional arguments:
+  tree                  Tree(-ish) object to start at.
+
+options:
+  -h, --help            show this help message and exit
+  --format, --pretty FORMAT_STR
+                        Pretty-print the contents of the tree in a given format
+  -d                    Show only the named tree entry itself, not its children.
+  -r                    Recurse into sub-trees.
+  -t                    Show tree entries even when going to recurse them.
+  -l, --long            Show object size of blob (file) entries.
+  -z                    \0 line termination on output and do not quote filenames.
+  --name-only, --name-status
+                        List only filenames, one per line.
+  --object-only         List only names of the objects, one per line.
+```
+
 ### rev-parse
 ### rm
 ### show-ref

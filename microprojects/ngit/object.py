@@ -1,30 +1,19 @@
-import hashlib  # ngit uses SHA-1 hash extensively
-import os  # os and os.path provide some nice filesystem abstraction routines
-import zlib  # to compress & decompress files
-import sys  # to access `sys.argv`
-
-
-from microprojects.ngit.repository import GitRepository, repo_file
-from microprojects.ngit.kvlm import kvlm_serialize, kvlm_parse
-from microprojects.ngit.tree import tree_serialize, tree_parse
-
-
 class GitObject(object):
-    """A generic GitObject which will be specialized later.
+    """A generic GitObject which will be specialized later
 
     Attributes:
         data (bytes | dict | list): raw data stored in GitObject
         fmt (bytes): header format: `blob`, `commit`, `tag` or `tree`
     """
 
-    data: bytes | dict | list = b""
+    data = b""
     fmt: bytes = b""
 
-    def __init__(self, data: bytes | dict | None = None) -> None:
-        """Loads the Object from the provided date or create a new one.
+    def __init__(self, data: bytes = None) -> None:  # type: ignore
+        """Loads the Object from the provided date or create a new one
 
         Parameters:
-            data (bytes | dict):
+            data (bytes):
         """
         if data is not None:
             self.deserialize(data)
@@ -36,7 +25,7 @@ class GitObject(object):
 
         Returns: The data stored in this GitObject
         """
-        raise Exception("Unimplemented!")
+        raise NotImplementedError("Unimplemented!")
 
     def deserialize(self, data: bytes) -> None:
         """Load the meaningful representation into `self`
@@ -44,15 +33,15 @@ class GitObject(object):
         Parameters:
             data (bytes): raw data stored in GitObject
         """
-        raise Exception("Unimplemented!")
+        raise NotImplementedError("Unimplemented!")
 
     def init(self) -> None:
-        """Create a default representation of data."""
-        pass  # Just do nothing. This is a reasonable default!
+        """Create a default representation of data"""
+        pass  # Just do nothing, this is a reasonable default!
 
 
 class GitBlob(GitObject):
-    """Blobs are simplest of GitObjects with no format, thus trivial implementation.
+    """Blobs are simplest of GitObjects with no format, thus trivial implementation
 
     Attributes:
         data (bytes): raw blob-data stored in GitBlob
@@ -79,11 +68,11 @@ class GitBlob(GitObject):
 
 
 class GitCommit(GitObject):
-    """
+    """TODO: Add description here
 
     Attributes:
         data (dict):
-        fmt (bytes):
+        fmt (bytes): GitCommit uses "commit" in header format
     """
 
     fmt = b"commit"
@@ -91,8 +80,8 @@ class GitCommit(GitObject):
     def serialize(self) -> bytes:
         return kvlm_serialize(self.data)
 
-    def deserialize(self, kvlm: bytes) -> None:
-        self.data = kvlm_parse(kvlm)
+    def deserialize(self, data: bytes) -> None:
+        self.data = kvlm_parse(data)
 
     def init(self) -> None:
         """Initialize an empty dict, because otherwise all objects would share same dict"""
@@ -100,13 +89,23 @@ class GitCommit(GitObject):
 
 
 class GitTag(GitCommit):
-    """"""
+    """Tags are similar to commits
+
+    Attributes:
+        data (dict):
+        fmt (bytes): GitTag uses "tag" in header format
+    """
 
     fmt: bytes = b"tag"
 
 
 class GitTree(GitObject):
-    """"""
+    """Trees contains list that associate blobs to there path
+
+    Attributes:
+        data (list): list of GitTreeLeaf that associate SHA-1 to its path
+        fmt (bytes): GitTree uses "tree" in header format
+    """
 
     fmt = b"tree"
 
@@ -120,133 +119,143 @@ class GitTree(GitObject):
         self.data = list()
 
 
-def object_read(repo: GitRepository, sha1: str) -> GitObject:
-    """Read the object stored in `.git/objects/$sha1`, decompress and then deserialize data
+class GitTreeLeaf(object):
+    """Single record in GitTree
+
+    Attributes:
+        mode (str): file-system permission of respective blob
+        sha1 (str): sha1 of a blob (file) or another GitTree (directory)
+        path (str): path of the file in file-system
+    """
+
+    def __init__(self, mode: str, sha1: str, path: str) -> None:
+        self.mode: str = mode
+        self.sha1: str = sha1
+        self.path: str = path
+
+
+def kvlm_parse(raw_gitdata: bytes) -> dict:
+    """Key value list with message parser for tag and commit
 
     Parameters:
-        repo (GitRepository): The current working git repository
-        sha1 (str): The SHA-1 hash of the object to read
+        raw_gitdata (bytes): Raw commit or tag, uncompressed, without headers
 
     Returns:
-        GitObject (GitObject): Appropirate GitObject with deserialized data
+        kvlm (dict): Key-Value pairs, best Python object for RFC2822
     """
-    file_path: str = repo_file(repo, "objects", sha1[:2], sha1[2:])
+    start: int = 0
+    kvlm: dict = {}
 
-    if not os.path.exists(file_path):
-        raise Exception(f"Not a valid object name: {sha1}")
+    while start < len(raw_gitdata):
+        idx_space: int = raw_gitdata.find(b" ", start)
+        idx_newline: int = raw_gitdata.find(b"\n", start)
 
-    with open(file_path, "rb") as obj_file:
-        raw_file: bytes = zlib.decompress(obj_file.read())
+        # In git commit format, the message is preceeded by a new line
+        if idx_space < 0 or idx_newline < idx_space:
+            kvlm[None] = raw_gitdata[start + 1 :]
+            return kvlm
 
-        idx_space: int = raw_file.find(b" ")  # The index of first space in raw_file
-        idx_null: int = raw_file.find(b"\x00")  # The index of first null in raw_file
+        # Key's are followed by a space, then a value terminated by newline '\n'
+        key: bytes = raw_gitdata[start:idx_space]
 
-        fmt: bytes = raw_file[:idx_space]  # fmt followed by a space (0x20)
-        size: int = int(raw_file[idx_space + 1 : idx_null])  # size is followed by 0x00
+        # Use ASCII of space (bytes are more int than str)
+        while raw_gitdata[idx_newline + 1] == ord(b" "):
+            idx_newline = raw_gitdata.find(b"\n", idx_newline + 1)
 
-        # Check for accidental changes in file
-        if size != len(raw_file) - idx_null - 1:
-            raise Exception(f"Malformed object {sha1}: bad length")
+        # Replace "\n " with "\n", its more intuitive to users, just press <ENTER>
+        value: bytes = raw_gitdata[idx_space + 1 : idx_newline].replace(b"\n ", b"\n")
 
-        # Pick the respective class to return
-        match fmt:
-            case b"blob":
-                return GitBlob(raw_file[idx_null + 1 :])
-            case b"commit":
-                return GitCommit(raw_file[idx_null + 1 :])
-            case b"tag":
-                return GitTag(raw_file[idx_null + 1 :])
-            case b"tree":
-                return GitTree(raw_file[idx_null + 1 :])
-            case _:
-                raise Exception(f"Unknown type {fmt.decode('ascii')} for object {sha1}")
+        # Since some keys have multiple values, so we store values in
+        # Rather than having a _mixed pickle_ of bytes and lists
+        if key in kvlm:
+            kvlm[key].append(value)
+        else:
+            kvlm[key] = [value]
+
+        start = idx_newline + 1
+
+    raise SyntaxError("kvlm parsing failed: not a valid git/RFC2822 kvlm")
 
 
-def object_write(obj: GitObject, repo: GitRepository | None = None) -> str:
-    """Writing an object is reading it in reverse: we compute the hash, insert the header,
-    zlib-compress everything and write the result in the correct location.
+def kvlm_serialize(kvlm: dict) -> bytes:
+    """Converts kvlm in RFC2822 compliant form
 
     Parameters:
-        obj (GitObject): The GitObject that we want to write in `.git/objects/`
-        repo (GitRepository): The current working git repository
+        kvlm: Dict with appropirate information to store
 
     Returns:
-        SHA-1 (str): The computed SHA-1 hash of object after formatting header
+        raw_gitdata (bytes): Raw commit or tag, uncompressed, without headers
+        in git/RFC2822 compliant form
     """
-    data: bytes = obj.serialize()
+    raw_gitdata: bytes = b""
 
-    # Header: format, space, size, NULL, data
-    result: bytes = obj.fmt + b" " + str(len(data)).encode() + b"\x00" + data
+    for key, values in kvlm.items():
+        if key is None:  # if it is message, then skip
+            continue
 
-    sha1: str = hashlib.sha1(result).hexdigest()
+        # if value is not list, make it for consisteny purpose
+        if type(values) is list:
+            for value in values:
+                raw_gitdata += key + b" " + value.replace(b"\n", b"\n ") + b"\n"
+        else:
+            raw_gitdata += key + b" " + values + b"\n"
 
-    if repo:
-        file_path: str = repo_file(repo, "objects", sha1[:2], sha1[2:], mkdir=True)
+    raw_gitdata += b"\n" + kvlm[None]
 
-        if not os.path.exists(file_path):
-            with open(file_path, "wb") as raw_file:
-                # Compress and write
-                raw_file.write(zlib.compress(result))
-
-    return sha1
-
-
-def object_hash(file, fmt: bytes, repo: GitRepository | None = None) -> str:
-    """Hash-Object, and optionally write it to repo if provided."""
-    data: bytes = file.read().encode()
-
-    match fmt:
-        case b"blob":
-            obj = GitBlob(data)
-        case b"commit":
-            obj = GitCommit(data)
-        case b"tag":
-            obj = GitTag(data)
-        case b"tree":
-            obj = GitTree(data)
-        case _:
-            raise Exception(f"Unknown type {fmt.decode('ascii')} for object")
-
-    return object_write(obj, repo)
+    return raw_gitdata
 
 
-def object_find(repo: GitRepository, name: str, fmt=None, follow=True) -> str:
-    """Resolve name to an Object in GitRepository, will be implemented later."""
-    sha1: str = name
+def tree_parse(raw_tree: bytes) -> list[GitTreeLeaf]:
+    """GitTree parser
 
-    return sha1
+    Parameters:
+        raw_tree (bytes): Raw tree, uncompressed, without header in valid format
 
+    Returns:
+        tree_leafs (list[GitTreeLeaf]):
+    """
+    start: int = 0
+    tree_leafs: list[GitTreeLeaf] = []
 
-def cat_file(repo: GitRepository, object: str, flag: tuple, fmt: str | None) -> None:
-    """Provide contents or details of GitObjects"""
-    obj: GitObject = object_read(repo, object_find(repo, object, fmt))
+    while start < len(raw_tree):
+        idx_space: int = raw_tree.find(b" ", start)
+        idx_null: int = raw_tree.find(b"\0", start)
 
-    if fmt is not None and fmt != obj.fmt.decode():
-        print(
-            f"Warning: Invalid type '{fmt}' specified, reading '{object}' as '{obj.fmt.decode()}'"
+        sha1: str = f"{int.from_bytes(raw_tree[idx_null + 1 : idx_null + 21]):040x}"
+
+        len_mode: int = idx_space - start
+        if not 5 <= len_mode <= 6:  # mode should be 5 or 6 characters long
+            raise ValueError(f"length of {sha1}'s mode is {len_mode}, should be 5 or 6")
+
+        tree_leafs.append(
+            GitTreeLeaf(
+                mode=raw_tree[start:idx_space].decode().rjust(6, "0"),
+                path=raw_tree[idx_space + 1 : idx_null].decode(),
+                sha1=sha1,
+            )
         )
 
-    if flag[0]:  # only_errors
-        pass
-    elif flag[2]:  # only_type
-        print(obj.fmt.decode())
-    elif flag[3]:  # only_size
-        print(len(obj.data.decode()))
-    else:  # pretty_print is Default
-        print(obj.data.decode())
+        start = idx_null + 21
+
+    return tree_leafs
 
 
-class shortify_hash:
-    """Returns a shortened version of sha1, atleast of length 7, that identifies
-    the object uniquely
+def tree_serialize(tree_leafs: list[GitTreeLeaf]) -> bytes:
+    """Converts a list of GitTreeLeafs to GitTree, and sorts to avoid duplication
+
+    Parameters:
+        tree_leafs (list[GitTreeLeaf]): list of GitTreeLeafs to put in a GitTree
+
+    Returns:
+        raw_gitdata (bytes): uncompressed raw tree, with leafs sorted as in GitTrees
     """
+    raw_tree: str = ""
 
-    repo: GitRepository
+    tree_leafs.sort(  # append '/' for dirs
+        key=lambda leaf: leaf.path if leaf.mode.startswith("10") else leaf.path + "/"
+    )
 
-    def __init__(self, repo: GitRepository) -> None:
-        self.repo = repo
+    for leaf in tree_leafs:
+        raw_tree = "".join([raw_tree, leaf.mode, " ", leaf.sha1, "\0", leaf.path, "\n"])
 
-    def __call__(self, sha1: str) -> str:
-        """Returns short hash"""
-
-        return sha1[:7]
+    return raw_tree.encode()
