@@ -70,6 +70,7 @@ def repo_file(repo: GitRepository, *path: str, mkdir: bool = False) -> str:
     Parameters:
         repo (GitRepository): The current working git repository
         *path (str): The path in .git/
+        mkdir (bool): If directory don't exist, make one
 
     Returns:
         path (str): The *path, but prefixed with $worktree/.git and delimited properly
@@ -150,3 +151,83 @@ def repo_find(path: str = ".", *, required: bool = True) -> GitRepository | None
 def repo_find_f(path: str = ".") -> GitRepository:
     """Helper function that do not return None, to avoid typing hell"""
     return repo_find(path, required=True)  # type: ignore
+
+
+def resolve_ref(repo: GitRepository, ref: str) -> str | None:
+    """Git References are pointers to interesting commit,
+    resolve_ref converts ref to absolute sha1 of object
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        ref (str): Git Reference of which we want absolute sha1
+
+    Returns:
+        SHA-1 (str): The SHA-1 identifier of commit referenced by `ref`
+    """
+    ref_path: str = repo_file(repo, ref)
+
+    if not os.path.isfile(ref_path):  # sometimes refs are broken, and its fine
+        return None
+
+    with open(ref_path) as ref_file:
+        new_ref: str = ref_file.read()[:-1]
+
+    if new_ref.startswith("ref: "):  # recursive case, in case of indirect references
+        return resolve_ref(repo, new_ref.removeprefix("ref: "))
+    else:
+        return new_ref
+
+
+def ref_list(repo: GitRepository, path=None, force: bool = False, _refs=None) -> dict:
+    """List all references in a directory sorted alphabetically, recursively
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        path (str | None): The path in .git/ of `repo`, which has only refs
+        force (bool): force show all entries in `.git/refs`
+
+    Returns:
+        ref_dict (dict[str, str | dict]): if value is dict, then key is sub_dir. if value is str, then key is ref_name
+    """
+
+    if path is None:
+        path = repo_dir(repo, "refs")
+    if _refs is None:
+        _refs = []
+    ref_dict: dict[str, str | dict | None] = dict()
+
+    assert path is not None, ".git/refs not found"
+
+    if any([path.endswith(ref) for ref in _refs]):
+        force = True
+
+    for sub_dir in sorted(os.listdir(path)):
+        new_path: str = os.path.join(path, sub_dir)
+
+        if os.path.isdir(new_path):  # recurse for each sub directory
+            ref_dict[sub_dir] = ref_list(repo, new_path, force, _refs)
+        elif force or any([new_path.endswith(ref) for ref in _refs]):
+            # store if file match the patterns given in _refs
+            ref_dict[sub_dir] = resolve_ref(repo, new_path)
+
+    return ref_dict
+
+
+def tag_list(repo: GitRepository, refs: dict, prefx: str = "") -> None:
+    """parse and print all refs in `refs` as `f'{prefx}{tagname}'`
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        refs (dict[str, str | dict]): if value is dict, then key is sub_dir. if value is str, then key is ref_name
+        prefx (str): The str to prefix tagname before printing them
+
+    Returns:
+        None (None): have side-effect (print on screen), so returns `None` to enforce this behavior
+    """
+    for tagname, sha1 in refs.items():
+        if type(sha1) is dict:
+            tag_list(repo, sha1, f"{prefx}{tagname}/")
+        elif os.path.exists(repo_file(repo, f"objects/{sha1[:2]}/{sha1[2:]}")):
+            print(f"{prefx}{tagname}")
+        else:
+            print(f"WARNING: ignoring broken ref refs/tags/{prefx}{tagname}")

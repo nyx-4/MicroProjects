@@ -194,15 +194,13 @@ def kvlm_serialize(kvlm: dict) -> bytes:
             continue
 
         # if value is not list, make it for consisteny purpose
-        if type(values) is list:
-            for value in values:
-                raw_gitdata += key + b" " + value.replace(b"\n", b"\n ") + b"\n"
-        else:
-            raw_gitdata += key + b" " + values + b"\n"
+        if type(values) is not list:
+            values = [values]
 
-    raw_gitdata += b"\n" + kvlm[None]
+        for value in values:
+            raw_gitdata += key + b" " + value.replace(b"\n", b"\n ") + b"\n"
 
-    return raw_gitdata
+    return raw_gitdata + b"\n" + kvlm[None]  # add commit message at end
 
 
 def tree_parse(raw_tree: bytes) -> list[GitTreeLeaf]:

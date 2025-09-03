@@ -13,10 +13,11 @@ import sys  # to access `sys.argv`
 # import zlib  # to compress & decompress files
 
 from microprojects.ngit.object import GitObject, GitCommit, GitTree
-from microprojects.ngit.repository import GitRepository, repo_find_f
-from microprojects.ngit.object_utils import object_find, object_read
+from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
+from microprojects.ngit.repository import resolve_ref, ref_list, tag_list
+from microprojects.ngit.object_utils import object_find, object_read, tag_create
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
-from microprojects.ngit.ngit_utils import checkout
+from microprojects.ngit.ngit_utils import checkout, show_ref
 from microprojects.ngit.log import print_logs
 
 
@@ -91,10 +92,10 @@ def ngit_main() -> None:
     # ArgParser for ngit checkout
     argsp_checkout = arg_subparser.add_parser(  # checkout
         "checkout",
-        prog="ngit",
+        prog="ngit checkout",
         description="Switch branches or restore working tree files",
         help="Switch branches or restore working tree files",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     argsp_checkout.add_argument(  # -q --quiet
         "-q",
@@ -309,10 +310,10 @@ def ngit_main() -> None:
     # ArgParser for ngit ls-tree
     argsp_ls_tree = arg_subparser.add_parser(  # ls-tree
         "ls-tree",
-        prog="ngit",
+        prog="ngit ls-tree",
         description="List the contents of a tree object",
         help="List the contents of a tree object",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     argsp_ls_tree.add_argument(  # --format --pretty
         "--format",
@@ -377,9 +378,154 @@ def ngit_main() -> None:
 
     # ArgParser for ngit rev-parse
     # ArgParser for ngit rm
+
     # ArgParser for ngit show-ref
+    argsp_show_ref = arg_subparser.add_parser(  # show-ref
+        "show-ref",
+        prog="ngit show-ref",
+        description="List references in a local repository",
+        help="List references in a local repository",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_show_ref.add_argument(  # ref
+        "ref",
+        nargs="*",
+        action="extend",
+        help="if verify or exists are specified, then these are ref to verify,\n"
+        "otherwise print refs under these sub-directory of `.git/refs/`",
+    )
+    argsp_show_ref.add_argument(  # --head
+        "--head",
+        dest="head",
+        action="store_true",
+        help="Show the HEAD reference, even if it would normally be filtered out",
+    )
+    argsp_show_ref.add_argument(  # --branches --heads
+        "--branches",
+        "--heads",
+        dest="ref",
+        action="append_const",
+        const="heads",
+        help="Limit to local branches only",
+    )
+    argsp_show_ref.add_argument(  # --tags
+        "--tags",
+        dest="ref",
+        action="append_const",
+        const="tags",
+        help="Limit to local tags only",
+    )
+    argsp_show_ref.add_argument(  # --remotes
+        "--remotes",
+        dest="ref",
+        action="append_const",
+        const="remotes",
+        help="Limit to remote branches only",
+    )
+    argsp_show_ref.add_argument(  # -q --quiet
+        "-q",
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Do not print any results to stdout. "
+        "Can be used with --verify to silently check if a reference exists",
+    )
+    argsp_show_ref.add_argument(  # -s --hash
+        "-s",
+        "--hash",
+        default=None,
+        const=40,
+        nargs="?",
+        help="Only show the object SHA-1, not the reference name",
+    )
+    argsp_show_ref.add_argument(  # -d --dereference
+        "-d",
+        "--dereference",
+        dest="deref",
+        action="store_true",
+        help="Dereference tags into object IDs as well. They will be shown with ^{} appended",
+    )
+    arggrp_show_ref_verify = argsp_show_ref.add_mutually_exclusive_group(required=False)
+    arggrp_show_ref_verify.add_argument(  # --exists
+        "--exists",
+        dest="exists",
+        action="store_true",
+        help="Check whether the given reference exists",
+    )
+    arggrp_show_ref_verify.add_argument(  # --verify
+        "--verify",
+        dest="verify",
+        action="store_true",
+        help="Enable stricter reference checking by requiring an exact ref path, "
+        "also prints error message unless -q passed",
+    )
+
     # ArgParser for ngit status
     # ArgParser for ngit tag
+    argsp_tag = arg_subparser.add_parser(
+        "tag",
+        prog="ngit tag",
+        description="Create, list or delete a tag object",
+        help="Create, list or delete a tag object",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_tag.add_argument(  # -a --annotate
+        "-a",
+        "--annotate",
+        dest="annotate",
+        action="store_true",
+        help="Make an unsigned, annotated tag object",
+    )
+    argsp_tag.add_argument(  # -d --delete
+        "-d",
+        "--delete",
+        dest="delete",
+        action="store_true",
+        help="Delete existing tags with the given names",
+    )
+    argsp_tag.add_argument(  # -l --list
+        "-l",
+        "--list",
+        dest="list",
+        action="store_true",
+        help="List tags. Running `git tag` without arguments also lists all tags",
+    )
+    argsp_tag.add_argument(  # -f --force
+        "-f",
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Replace an existing tag with the given name (instead of failing)",
+    )
+    argsp_tag.add_argument(  # -m --message
+        "-m",
+        "--message",
+        dest="message",
+        metavar="MSG",
+        default=None,
+        help="Use the given tag message (instead of prompting or reading from file)",
+    )
+    argsp_tag.add_argument(  # -F --file
+        "-F",
+        "--file",
+        dest="file",
+        nargs="?",
+        const="-",
+        default="-",
+        help="Take the tag message from the given file. Use - to read the message from the standard input",
+    )
+    argsp_tag.add_argument(  # tagname
+        "tagname",
+        nargs="?",
+        default=None,
+        help="The name of the tag to create, delete, or describe",
+    )
+    argsp_tag.add_argument(  # commit
+        "commit",
+        nargs="?",
+        default="HEAD",
+        help="The object that the new tag will refer to, usually a commit (Defaults to HEAD)",
+    )
 
     args: argparse.Namespace = parser.parse_args()
     main(args)
@@ -555,7 +701,33 @@ def cmd_rm(args: argparse.Namespace) -> None:
 
 
 def cmd_show_ref(args: argparse.Namespace) -> None:
-    pass
+    repo: GitRepository = repo_find_f()
+
+    if not args.ref:  # no ref specified, default to refs/ one
+        args.ref = ["refs"]
+
+    if args.head or "HEAD" in args.ref:
+        print(resolve_ref(repo, "HEAD"), "" if args.hash else "HEAD")
+
+    args.ref = sorted(set(args.ref))
+
+    # fmt: off
+    verify: int = (
+        1 if args.verify and args.quiet else
+        2 if args.verify else
+        3 if args.exists else
+        0 # default, nothing specified
+    )
+
+    # TODO: some bugs here, hunt 'em down!!
+    # TODO: Simplify the convuluted logic here.
+    if verify == 3:
+        sys.exit(0 if all(os.path.exists(repo_file(repo, path)) for path in args.ref) else 2)
+    if verify == 0 or verify == 2:
+        show_ref(repo, args.ref, args.hash, args.deref)
+    if verify == 1 or verify == 2:
+        sys.exit(0 if all(os.path.exists(resolve_ref(repo, path) or "") for path in args.ref) else 1)
+    # fmt: on
 
 
 def cmd_status(args: argparse.Namespace) -> None:
@@ -563,4 +735,31 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 
 def cmd_tag(args: argparse.Namespace) -> None:
-    pass
+    repo: GitRepository = repo_find_f()
+    tagfile: str = repo_file(repo, f"refs/tags/{args.tagname}")
+
+    if args.delete:
+        try:
+            os.remove(tagfile)
+        except FileNotFoundError:
+            print(f"WARNING: tag `{args.tagname}' not found")
+
+    # As `-d` also uses tagname, so that case must be handled before
+    elif args.tagname is not None:
+        # if tag alreadt exists but -f was not specified, raise Exception
+        if args.force is False and os.path.exists(tagfile):
+            raise FileExistsError(f"tag {args.tagname} already exists, -f to overwrite")
+
+        if args.message is None:  # if -m is not specified
+            if args.file == "-":  # read from stdin
+                print("# Write a message for tag... (Ctrl+D to continue)")
+                args.message = sys.stdin.read()
+            else:  # or from a file, if specified
+                with open(args.file) as msg_file:
+                    args.message = msg_file.read()
+
+        sha1: str = object_find(repo, args.commit)
+        tag_create(repo, args.tagname, sha1, tagfile, args.message, args.annotate)
+
+    else:  # if args.list or nothing else specified
+        tag_list(repo, ref_list(repo, repo_file(repo, "refs/tags"), force=True))

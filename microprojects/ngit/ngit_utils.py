@@ -1,10 +1,10 @@
 import os
 import configparser
 
-from microprojects.ngit.repository import GitRepository, repo_dir, repo_file
+from microprojects.ngit.repository import GitRepository, repo_dir, repo_file, ref_list
 from microprojects.ngit.object import GitObject, GitCommit, GitBlob, GitTag, GitTree
 from microprojects.ngit.object_utils import object_read, object_find, object_write
-from microprojects.ngit.object_utils import pick_object
+from microprojects.ngit.object_utils import pick_object, shortify_hash
 
 
 def repo_default_config() -> configparser.ConfigParser:
@@ -118,7 +118,7 @@ def object_hash(repo: GitRepository | None, file, fmt: bytes) -> str:
     """
     data: bytes = file.read().encode()
 
-    return object_write(pick_object(fmt.decode(), data, ""), repo)
+    return object_write(repo, pick_object(fmt.decode(), data, ""))
 
 
 def ls_tree(
@@ -220,3 +220,26 @@ def checkout(repo: GitRepository, tree: GitTree, path: str, quiet: bool) -> None
             # TODO: Support symlinks (identified by mode 12****)
             with open(dest, "wb") as file:
                 file.write(obj.data)
+
+
+def show_ref(
+    repo: GitRepository, refs: list, only_sha1: bool, deref: bool, prefx="refs"
+) -> None:
+    """List references in repo under ref, verify them, and print relevant information
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        ref (list): a list directories and refs to show
+        only_sha1 (bool): don't show ref next to SHA-1
+        deref (bool): dereference tags into objectID also, shown with ^{} appended
+        prefx (str): the directory in .git/ to start search for refs recursively
+
+    Returns:
+        None (None): have side-effect (print on screen), so returns `None` to enforce this behavior
+    """
+
+    for ref, val in ref_list(repo, repo_file(repo, prefx), _refs=refs).items():
+        if type(val) is str:
+            print(val, "" if only_sha1 else os.path.join(prefx, ref))
+        else:
+            show_ref(repo, val, only_sha1, deref, prefx=os.path.join(prefx, ref))

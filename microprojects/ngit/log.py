@@ -111,18 +111,30 @@ def print_logs(
             break
         max_count -= 1
 
-        print(prettify(cur_commit.data, format_str, repo, cur_sha1, date_fmt))
+        def shortify(obj_ref: str) -> str:
+            """`shortify_hash`'s wrapper that takes only one argument
+
+            Parameters:
+                obj_ref (str): The object reference whose short_hash is needed
+
+            Returns:
+                short_hash: Returns a shortened version of sha1, atleast of length 7,
+                that identifies the object uniquely
+            """
+            return shortify_hash(repo, obj_ref)
+
+        print(prettify(cur_commit.data, format_str, shortify, cur_sha1, date_fmt))
 
 
 def prettify(
-    kvlm: dict, format_str: str, repo: GitRepository, commit_sha1: str, date_fmt: str
+    kvlm: dict, format_str: str, shortify, commit_sha1: str, date_fmt: str
 ) -> str:
     """Returns a formatted version of `format_str` using substitutions from kvlm
 
     Parameters:
         kvlm (dict): The dict with required information to put in `format_str`
         format_str (str): The str containing the required format
-        repo (GitRepository): The working repository, helps in abbriviation of commit_sha1
+        shortify: A function that takes in object's ref and returns a shortified sha1 of minimum len 7
         commit_sha1 (str): The SHA1 of current commit, as it's not in KVLM
         date_fmt (str): The date format to use for dates
 
@@ -149,8 +161,6 @@ def prettify(
     format_str = format_str.replace("%C(auto)", "\033[39m")
 
     # KVLM-extracted information
-    shortify = shortify_hash(repo)
-
     format_str = format_str.replace("%H", commit_sha1)
     format_str = format_str.replace("%h", abbrified([commit_sha1.encode()], shortify))
     format_str = format_str.replace("%T", longified(kvlm.get(b"tree", [])))

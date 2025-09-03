@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Added
+- Added functions like `resolve_ref` and `ref_list` for `show-ref`, `tag`, `branch`, `checkout` to work with `.git/refs`
+- Added `ngit show-ref` that list references stored in `.git/refs`
+- Added `ngit tag` that can create, delete and list tags, and is based on `show-ref`'s backend
+
+
+### Changed
+- Converted `shortify_hash` to a function, use a local lambda to use like previous implementation
+
+### Fixed
+- Reduced nesting and minor-redundancy in `kvlm_serialize`
+
 
 ## [0.1.2]
 

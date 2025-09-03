@@ -39,11 +39,12 @@ def object_read(repo: GitRepository, sha1: str) -> GitObject:
     return pick_object(fmt.decode(), raw_file[idx_null + 1 :], sha1)
 
 
-def pick_object(fmt: str, data, sha1="") -> GitObject:
+def pick_object(fmt: str, data: bytes, sha1="") -> GitObject:
     """Pick the respective class to return
 
     Parameters:
         fmt (str): the header format: one of `blob`, `commit`, `tag` or `tree`
+        data (bytes): The raw data to store in GitObject
         sha1 (str): SHA-1 hash for debug purpose only, optional
 
     Returns:
@@ -63,13 +64,14 @@ def pick_object(fmt: str, data, sha1="") -> GitObject:
             return GitBlob(data)
 
 
-def object_write(obj: GitObject, repo: GitRepository | None = None) -> str:
+def object_write(repo: GitRepository | None, obj: GitObject) -> str:
     """Writing an object is reading it in reverse: we compute the hash, insert the header,
-    zlib-compress everything and write the result in the correct location.
+    zlib-compress everything and write the result in the correct location
 
     Parameters:
+        repo (GitRepository): The git repository where to write object
+            (pass `None` if you don't want to write in repo)
         obj (GitObject): The GitObject that we want to write in `.git/objects/`
-        repo (GitRepository): The current working git repository
 
     Returns:
         SHA-1 (str): The computed SHA-1 hash of object after formatting header
@@ -99,19 +101,46 @@ def object_find(repo: GitRepository, name: str, fmt=None, follow=True) -> str:
     return sha1
 
 
-class shortify_hash:
+def tag_create(
+    repo: GitRepository, tagname: str, sha1: str, message: str = "", mkobj: bool = False
+) -> str:
+    """Create a tagfile in `.git/refs/tags` and optionally make a GitTag object in `.git/objects`
+
+    Parameters:
+        repo (GitRepository): The git repository where to make a tag
+        tagname (str): The name of new tag (used in GitTag's `tag` field)
+        sha1 (str): The SHA-1 of commit or object that this tag refers to
+        message (str): The tag message to use in GitTag object (optional)
+        mkobj (str): Whether to make a GitTag object in `.git/objects` or not
+
+    Returns:
+        SHA-1 (str): SHA-1 of GitTag object object (if mkobj) or `sha1` that is passed in
+    """
+
+    if mkobj:  # create tag object in .git/objects also
+        tag_obj = GitTag()
+
+        tag_obj.data = {
+            b"object": sha1.encode(),
+            b"type": b"commit",  # TODO: get proper type of sha1
+            b"tag": tagname.encode(),
+            b"tagger": b"Nyx <nyx@example.com> 1756495905 +0500",  # TODO: read from config file
+            None: message.encode(),
+        }
+
+        sha1 = object_write(repo, tag_obj)  # update sha1 to point to GitTag
+
+    # write to refs/tags regardless of `annotate` flag
+    with open(repo_file(repo, f"refs/tags/{tagname}"), "w") as tag_file:
+        tag_file.write(sha1 + "\n")
+
+    return sha1
+
+
+def shortify_hash(repo: GitRepository, sha1: str) -> str:
     """Returns a shortened version of sha1, atleast of length 7, that identifies
     the object uniquely
 
     """
-
-    # TODO: Implement using `functool`, rather than class
-    repo: GitRepository
-
-    def __init__(self, repo: GitRepository) -> None:
-        self.repo = repo
-
-    def __call__(self, sha1: str) -> str:
-        """Returns short hash"""
-
-        return sha1[:7]
+    # TODO: implement shortify hash properly
+    return sha1[:7]
