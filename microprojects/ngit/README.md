@@ -73,7 +73,23 @@ pip install microprojects
 
 
 ## Sub-commands
-The supported subset of Git's commands are listed here.
+`ngit` only suppport a small sub-set of Git SubCommands (git has over 150 subcommands and counting...)
+
+
+```sh
+. (155)
+├── porcelain (84)
+│   ├── main (45)
+│   ├── ancillary (29)
+│   │   ├── mainpulators (12)
+│   │   └── interrogators (17)
+│   └── interacting with others (10)
+└── plumbing (71)
+    ├── manipulators (20)
+    ├── interrogation (22)
+    ├── syncing repositories (11)
+    └── internal helpers (18)
+```
 
 > [!Note]
 > This information is also available at `ngit <command> --help` and `ngit help <command>`.

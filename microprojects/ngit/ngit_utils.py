@@ -4,7 +4,7 @@ import configparser
 from microprojects.ngit.repository import GitRepository, repo_dir, repo_file, ref_list
 from microprojects.ngit.object import GitObject, GitCommit, GitBlob, GitTag, GitTree
 from microprojects.ngit.object_utils import object_read, object_find, object_write
-from microprojects.ngit.object_utils import pick_object, shortify_hash
+from microprojects.ngit.object_utils import object_pick, shortify_hash
 
 
 def repo_default_config() -> configparser.ConfigParser:
@@ -87,7 +87,7 @@ def cat_file(repo: GitRepository, sha1: str, flag: int, fmt: str | None = None) 
     Returns:
         None (None): have side-effect (prints on screen), so returns `None` to enforce this behavior
     """
-    obj: GitObject = object_read(repo, object_find(repo, sha1, fmt))
+    obj: GitObject = object_read(repo, str(object_find(repo, sha1, fmt)))
 
     if fmt is not None and fmt != obj.fmt.decode():
         print(
@@ -118,7 +118,7 @@ def object_hash(repo: GitRepository | None, file, fmt: bytes) -> str:
     """
     data: bytes = file.read().encode()
 
-    return object_write(repo, pick_object(fmt.decode(), data, ""))
+    return object_write(repo, object_pick(fmt.decode(), data, ""))
 
 
 def ls_tree(

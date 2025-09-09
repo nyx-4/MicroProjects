@@ -15,7 +15,7 @@ import sys  # to access `sys.argv`
 from microprojects.ngit.object import GitObject, GitCommit, GitTree
 from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
 from microprojects.ngit.repository import resolve_ref, ref_list, tag_list
-from microprojects.ngit.object_utils import object_find, object_read, tag_create
+from microprojects.ngit.object_utils import object_find_f, object_read, tag_create
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
 from microprojects.ngit.ngit_utils import checkout, show_ref
 from microprojects.ngit.log import print_logs
@@ -377,6 +377,33 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit rev-parse
+    argsp_rev_parse = arg_subparser.add_parser(  # rev-parse
+        "rev-parse",
+        prog="ngit rev-parse",
+        description="Parse revision names or give repo information",
+        help="Parse revision names or give repo information",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_rev_parse.add_argument(  # -t --type
+        "-t",
+        "--type",
+        metavar="<type>",
+        choices=["blob", "commit", "tag", "tree"],
+        default=None,
+        help="Specify the type of object to be created, Possible values are blob, commit, tag, and tree",
+    )
+    argsp_rev_parse.add_argument(  # name
+        "name",
+        nargs="+",
+        help="The name of object to parse",
+    )
+    argsp_rev_parse.add_argument(  # --follow
+        "--follow",
+        dest="follow",
+        action="store_true",
+        help="follow tags objects",
+    )
+
     # ArgParser for ngit rm
 
     # ArgParser for ngit show-ref
@@ -599,13 +626,15 @@ def cmd_checkout(args: argparse.Namespace) -> None:
     repo: GitRepository = repo_find_f()
 
     if args.branch is None:
-        # TODO: if args.branch is not specified, default to current branch
-        pass
+        args.branch = resolve_ref(repo, "HEAD")
 
-    obj: GitObject = object_read(repo, object_find(repo, args.branch))
+    if args.branch is None:  # still None
+        raise ValueError("branch is not specified and HEAD is a broken reference")
+
+    obj: GitObject = object_read(repo, object_find_f(repo, args.branch))
 
     if type(obj) is GitCommit:  # read `tree` if commit
-        obj = object_read(repo, object_find(repo, obj.data[b"tree"][0].decode()))
+        obj = object_read(repo, object_find_f(repo, obj.data[b"tree"][0].decode()))
 
     assert type(obj) is GitTree
 
@@ -660,7 +689,7 @@ def cmd_log(args: argparse.Namespace) -> None:
 
     print_logs(
         repo,
-        object_find(repo, args.commits),
+        object_find_f(repo, args.commits),
         decorate=args.decorate,  # TODO
         log_size=args.log_size,  # TODO
         max_count=args.max_count,
@@ -683,7 +712,7 @@ def cmd_ls_tree(args: argparse.Namespace) -> None:
 
     ls_tree(
         repo,
-        object_find(repo, args.tree, b"tree"),
+        object_find_f(repo, args.tree, "tree"),
         only_trees=args.only_trees,
         recurse_trees=args.recurse_trees,
         always_trees=args.always_trees,
@@ -693,7 +722,8 @@ def cmd_ls_tree(args: argparse.Namespace) -> None:
 
 
 def cmd_rev_parse(args: argparse.Namespace) -> None:
-    pass
+    for name in args.name:
+        print(object_find_f(repo_find_f(), name, args.type, args.follow))
 
 
 def cmd_rm(args: argparse.Namespace) -> None:
@@ -758,8 +788,8 @@ def cmd_tag(args: argparse.Namespace) -> None:
                 with open(args.file) as msg_file:
                     args.message = msg_file.read()
 
-        sha1: str = object_find(repo, args.commit)
-        tag_create(repo, args.tagname, sha1, tagfile, args.message, args.annotate)
+        sha1: str = object_find_f(repo, args.commit)
+        tag_create(repo, args.tagname, sha1, args.message, args.annotate)
 
     else:  # if args.list or nothing else specified
         tag_list(repo, ref_list(repo, repo_file(repo, "refs/tags"), force=True))

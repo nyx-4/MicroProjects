@@ -1,10 +1,11 @@
 import hashlib  # ngit uses SHA-1 hash extensively
 import os  # os and os.path provide some nice filesystem abstraction routines
 import zlib  # to compress & decompress files
-import sys  # to access `sys.argv`
+import re
 
 
-from microprojects.ngit.repository import GitRepository, repo_file
+from microprojects.ngit.repository import GitRepository, repo_file, resolve_ref
+from microprojects.ngit.repository import repo_dir
 from microprojects.ngit.object import GitObject, GitBlob, GitCommit, GitTag, GitTree
 
 
@@ -36,10 +37,10 @@ def object_read(repo: GitRepository, sha1: str) -> GitObject:
         if size != len(raw_file) - idx_null - 1:
             print(f"WARNING: Malformed object {sha1}: bad length")
 
-    return pick_object(fmt.decode(), raw_file[idx_null + 1 :], sha1)
+    return object_pick(fmt.decode(), raw_file[idx_null + 1 :], sha1)
 
 
-def pick_object(fmt: str, data: bytes, sha1="") -> GitObject:
+def object_pick(fmt: str, data: bytes, sha1="") -> GitObject:
     """Pick the respective class to return
 
     Parameters:
@@ -94,11 +95,107 @@ def object_write(repo: GitRepository | None, obj: GitObject) -> str:
     return sha1
 
 
-def object_find(repo: GitRepository, name: str, fmt=None, follow=True) -> str:
-    """Resolve name to an Object in GitRepository, will be implemented later."""
-    sha1: str = name
+def object_find(
+    repo: GitRepository, ref: str, fmt: str | None = None, follow: bool = True
+) -> str | None:
+    """Find a unique object (if any) that can be referenced as `ref` in git
 
-    return sha1
+    Parameters:
+        repo (GitRepository): The GitRepository in which `ref` is located
+        ref (str): The ref, short-hash, long-hash etc. used to represent an object
+        fmt (str | None): (optional) expected format of `ref`
+        follow (bool): whether to follow tags or not
+
+    Returns:
+        SHA-1 (str | None): The long-hash of object referenced by `ref` or None if `fmt` mismatch
+
+    Raises:
+        NameError: if no object can be referenced as `ref`
+        ReferenceError: if multiple objects can be referenced as `ref`
+    """
+    sha1 = object_resolve(repo, ref)
+
+    if not sha1:
+        raise NameError(f"fatal: no object with reference {ref} found")
+
+    if len(sha1) > 1:
+        cands: str = "\n - ".join(sha1)
+        raise ReferenceError(f"ambiguous {ref=}, possible candidate are:\n - {cands}")
+
+    sha1 = sha1.pop()  # since len(sha1) is 1, so pop() will return only available value
+    assert type(sha1) is str, f"{sha1=} should be str"
+
+    if not fmt:  # if fmt not specified, return the sha1 as is
+        return sha1
+
+    while True:
+        obj: GitObject = object_read(repo, sha1)
+
+        if obj.fmt.decode() == fmt:  # if fmt matches, return sha1
+            return sha1
+
+        if not follow:
+            return None
+
+        if type(obj) is GitTag:  # follow GitTag
+            sha1 = obj.data[b"object"][0].decode()
+        elif type(obj) is GitCommit and fmt == "tree":  # get tree from commit
+            return obj.data[b"tree"][0].decode()
+        else:
+            return None
+
+
+def object_find_f(
+    repo: GitRepository, name: str, fmt: str | None = None, follow: bool = True
+) -> str:
+    """Helper function that do not return None, to avoid typing hell"""
+    obj: str | None = object_find(repo, name, fmt, follow)
+
+    if obj is None:
+        raise ValueError(f"fatal: fmt of {name} is not {fmt}")
+    else:
+        return obj
+
+
+def object_resolve(repo: GitRepository, obj_name: str) -> set:
+    """Resolve name to an object hash in repo (where name is short-hash, long-hash, 'HEAD', tags, branches etc)
+
+    Parameters:
+        repo (GitRepository): The Git Repository in which `obj_name` is located
+        obj_name (Str): The ref, short-hash, long-hash etc. used to represent an object
+
+    Returns:
+        candidates (set[str]): possible candidates for `obj_name` in `repo` without duplicates
+    """
+    candidates: set[str] = set()
+
+    if not obj_name.strip():  # empty obj_name matches nothing
+        return set()
+
+    if obj_name == "HEAD":  # HEAD resolves to HEAD
+        return {resolve_ref(repo, "HEAD")}
+
+    if re.match(r"^[0-9a-fA-F]{4,40}$", obj_name):  # Try obj_name for hash of len 4-40
+        sha1: str = obj_name.lower()
+        if obj_dir := repo_dir(repo, "objects/" + sha1[:2]):
+            candidates.update(  # append all objects that starts with matches obj_name
+                sha1[:2] + _ for _ in os.listdir(obj_dir) if _.startswith(sha1[2:])
+            )
+
+    for ref_type in ["tags", "heads", "remotes"]:
+        if ref := resolve_ref(repo, f"refs/{ref_type}/{obj_name}"):
+            candidates.add(ref)
+
+    return candidates
+
+
+def shortify_hash(repo: GitRepository, sha1: str) -> str:
+    """Returns a shortened version of sha1, atleast of length 7, that identifies
+    the object uniquely
+
+    """
+    # TODO: implement shortify hash properly
+    return sha1[:7]
 
 
 def tag_create(
@@ -135,12 +232,3 @@ def tag_create(
         tag_file.write(sha1 + "\n")
 
     return sha1
-
-
-def shortify_hash(repo: GitRepository, sha1: str) -> str:
-    """Returns a shortened version of sha1, atleast of length 7, that identifies
-    the object uniquely
-
-    """
-    # TODO: implement shortify hash properly
-    return sha1[:7]
