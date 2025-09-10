@@ -7,20 +7,10 @@ from microprojects.ngit.object import GitCommit, GitObject
 
 
 def print_logs(
-    repo: GitRepository,
-    sha1: str,
-    *,
-    decorate: str,
-    log_size: bool,
-    max_count: int,
-    skip: int,
-    after: str,
-    before: str,
-    min_parents: int,
-    max_parents: int,
-    format_str: str,
-    date_fmt: str,
-) -> None:
+        repo: GitRepository, sha1: str, *, decorate: str, log_size: bool,
+        max_count: int, skip: int, after: str, before: str, min_parents: int,
+        max_parents: int, format_str: str, date_fmt: str
+) -> None:  # fmt: skip
     """Show commit logs, according to specified flags
 
     Parameters:

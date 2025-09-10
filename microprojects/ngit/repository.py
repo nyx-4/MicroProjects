@@ -45,6 +45,46 @@ class GitRepository(object):
                 raise NotImplementedError(f"unsupported repositoryformatversion: {ver}")
 
 
+class GitIndexEntry(object):
+    """"""
+
+    def __init__(
+        self, ctime_s: int, ctime_n: int, mtime_s: int, mtime_n: int, dev: int, ino: int,
+        mode_type: int, mode_perms: int, uid: int, gid: int, file_size: int, sha1: str,
+        flag_assume_valid: int, flag_stage: int, name: str
+    ) -> None:  # fmt: skip
+        """"""
+
+        self.ctime_s: int = ctime_s
+        self.ctime_n: int = ctime_n
+        self.mtime_s: int = mtime_s
+        self.mtime_n: int = mtime_n
+        self.dev: int = dev
+        self.ino: int = ino
+        self.mode_type: int = mode_type
+        self.mode_perms: int = mode_perms
+        self.uid: int = uid
+        self.gid: int = gid
+        self.file_size: int = file_size
+        self.sha1: str = sha1
+        self.flag_assume_valid: int = flag_assume_valid
+        self.flag_stage: int = flag_stage
+        self.name: str = name
+
+
+class GitIndex(object):
+    """"""
+
+    version: int = 2
+    entries: list[GitIndexEntry]
+    # ext  # NotImplemented
+    # sha1: str  # ignored
+
+    def __init__(self, version: int = 2, entries: list[GitIndexEntry] = []) -> None:
+        self.version = version
+        self.entries = entries or []  # `or []` is important part
+
+
 def repo_path(repo: GitRepository, *path: str) -> str:
     """Compute path under repo's git/ directory
 

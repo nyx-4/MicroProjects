@@ -17,7 +17,7 @@ from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
 from microprojects.ngit.repository import resolve_ref, ref_list, tag_list
 from microprojects.ngit.object_utils import object_find_f, object_read, tag_create
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
-from microprojects.ngit.ngit_utils import checkout, show_ref
+from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files
 from microprojects.ngit.log import print_logs
 
 
@@ -306,6 +306,54 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit ls-files
+    argsp_ls_files = arg_subparser.add_parser(  # ls-files
+        "ls-files",
+        prog="ngit ls-files",
+        description="Show information about files in the index and the working tree",
+        help="Show information about files in the index and the working tree",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_ls_files.add_argument(  # -z
+        "-z",
+        dest="null_terminator",
+        action="store_true",
+        help="\\0 line termination on output and do not quote filenames",
+    )
+    argsp_ls_files.add_argument(  # --format
+        "--format",
+        default="",  # TODO: Use a sensible default for format
+        dest="format",
+        help="A string that interpolates %%(fieldname) from the result being shown",
+    )
+    argsp_ls_files.add_argument(  # --verbose
+        "--verbose",
+        action="store_const",
+        const="""\
+%(path) @%(objectname) <%(stage)>
+  ctime: %(ctime:iso)
+  mtime: %(mtime:iso)
+  mode: %(objectmode)\ttype: %(objecttype)
+  dev: %(dev)\tino: %(ino)
+  uid: %(uid)\tgid: %(gid)
+  size: %(objectsize)\tflags: %(flags)
+""",
+        dest="format",
+        help="show all information about GitIndex",
+    )
+    argsp_ls_files.add_argument(  # --debug
+        "--debug",
+        action="store_const",
+        const="""\
+%(path)
+  ctime: %(ctime)
+  mtime: %(mtime)
+  dev: %(dev)\tino: %(ino)
+  uid: %(uid)\tgid: %(gid)
+  size: %(objectsize)\tflags: %(flags)
+""",
+        dest="format",
+        help="After each line that describes a file, add more data about its cache entry",
+    )
 
     # ArgParser for ngit ls-tree
     argsp_ls_tree = arg_subparser.add_parser(  # ls-tree
@@ -606,14 +654,12 @@ def cmd_add(args: argparse.Namespace) -> None:
 def cmd_cat_file(args: argparse.Namespace) -> None:
     repo: GitRepository = repo_find_f()
 
-    # fmt: off
     flag: int = (
         1 if args.only_error else
         2 if args.only_type else
         3 if args.only_size else
         4 # default flag is 4
-    )
-    # fmt: on
+    )  # fmt: skip
 
     cat_file(repo, args.object, fmt=args.type, flag=flag)
 
@@ -704,7 +750,10 @@ def cmd_log(args: argparse.Namespace) -> None:
 
 
 def cmd_ls_files(args: argparse.Namespace) -> None:
-    pass
+    # TODO: Some args depends on `git status`, add them after status implemented
+    repo: GitRepository = repo_find_f()
+    endl: str = "\0" if args.null_terminator else "\n"
+    ls_files(repo, args.format, endl)
 
 
 def cmd_ls_tree(args: argparse.Namespace) -> None:

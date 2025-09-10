@@ -2,10 +2,11 @@ import hashlib  # ngit uses SHA-1 hash extensively
 import os  # os and os.path provide some nice filesystem abstraction routines
 import zlib  # to compress & decompress files
 import re
+import math
 
 
 from microprojects.ngit.repository import GitRepository, repo_file, resolve_ref
-from microprojects.ngit.repository import repo_dir
+from microprojects.ngit.repository import repo_dir, GitIndex, GitIndexEntry
 from microprojects.ngit.object import GitObject, GitBlob, GitCommit, GitTag, GitTree
 
 
@@ -195,6 +196,7 @@ def shortify_hash(repo: GitRepository, sha1: str) -> str:
 
     """
     # TODO: implement shortify hash properly
+    # TODO: add `--abbrev=[n]` in ngit sub-commands that supports it
     return sha1[:7]
 
 
@@ -232,3 +234,68 @@ def tag_create(
         tag_file.write(sha1 + "\n")
 
     return sha1
+
+
+def index_read(repo) -> GitIndex:
+    """"""
+
+    def bin_read(raw_data: bytes) -> int:
+        """A helper function to converts big-endian bytes to int"""
+        return int.from_bytes(raw_data, byteorder="big")
+
+    index_file: str = repo_file(repo, "index")
+
+    # New repositories do not have .git/index file
+    if not os.path.exists(index_file):
+        return GitIndex()
+
+    with open(index_file, "rb") as file:
+        raw_idx: bytes = file.read()
+
+    signature: bytes = raw_idx[:4]
+    assert signature == b"DIRC", f"signature should be b'DIRC', got {signature=}"
+    version: int = bin_read(raw_idx[4:8])
+    assert version == 2, f"Only version 2 GitIndex is supported, got {version=}"
+
+    len_entries: int = bin_read(raw_idx[8:12])
+    entries: list[GitIndexEntry] = []
+
+    idx: int = 0
+    raw_idx = raw_idx[12:]  # 12 bytes are already read
+
+    for _ in range(len_entries):
+        flags: int = bin_read(raw_idx[idx + 60 : idx + 62])
+
+        kwargs: dict[str, int] = {  # some kwargs to pass to GitIndexEntry()
+            "ctime_s": bin_read(raw_idx[idx + 0 : idx + 4]),
+            "ctime_n": bin_read(raw_idx[idx + 4 : idx + 8]),
+            "mtime_s": bin_read(raw_idx[idx + 8 : idx + 12]),
+            "mtime_n": bin_read(raw_idx[idx + 12 : idx + 16]),
+            "dev": bin_read(raw_idx[idx + 16 : idx + 20]),
+            "ino": bin_read(raw_idx[idx + 20 : idx + 24]),
+            "mode_type": bin_read(raw_idx[idx + 26 : idx + 28]) >> 12,
+            "mode_perms": bin_read(raw_idx[idx + 26 : idx + 28]) & 0x1FF,
+            "uid": bin_read(raw_idx[idx + 28 : idx + 32]),
+            "gid": bin_read(raw_idx[idx + 32 : idx + 36]),
+            "file_size": bin_read(raw_idx[idx + 36 : idx + 40]),
+            "flag_assume_valid": flags & 0x8000,
+            "flag_stage": flags & 0x3000,
+        }
+        sha1: str = format(bin_read(raw_idx[idx + 40 : idx + 60]), "040x")
+
+        idx += 62  # read 62 bytes thus far
+        len_name: int = flags & 0xFFF
+
+        if len_name < 0xFFF:  # normal case, len(name) is given
+            assert raw_idx[idx + len_name] == 0x00, f"No NULL at {idx + len_name=}"
+            raw_name: bytes = raw_idx[idx : idx + len_name]
+            idx += len_name + 1
+        else:
+            idx_null: int = raw_idx.find(b"\x00", idx + 0xFFF)
+            raw_name = raw_idx[idx:idx_null]
+            idx += idx_null + 1
+
+        idx = (idx + 7) & ~7  # ceil to next multiple of 8
+
+        entries.append(GitIndexEntry(**kwargs, sha1=sha1, name=raw_name.decode()))
+    return GitIndex(version=version, entries=entries)

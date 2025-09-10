@@ -1,10 +1,12 @@
 import os
 import configparser
+from datetime import datetime
 
 from microprojects.ngit.repository import GitRepository, repo_dir, repo_file, ref_list
+from microprojects.ngit.repository import GitIndex, GitIndexEntry
 from microprojects.ngit.object import GitObject, GitCommit, GitBlob, GitTag, GitTree
 from microprojects.ngit.object_utils import object_read, object_find, object_write
-from microprojects.ngit.object_utils import object_pick, shortify_hash
+from microprojects.ngit.object_utils import object_pick, shortify_hash, index_read
 
 
 def repo_default_config() -> configparser.ConfigParser:
@@ -122,15 +124,9 @@ def object_hash(repo: GitRepository | None, file, fmt: bytes) -> str:
 
 
 def ls_tree(
-    repo: GitRepository,
-    sha1: str,
-    only_trees: bool,
-    recurse_trees: bool,
-    always_trees: bool,
-    null_terminator: bool,
-    format_str: str,
-    _prefix: str = "",
-) -> None:
+        repo: GitRepository, sha1: str, only_trees: bool, recurse_trees: bool,
+        always_trees: bool, null_terminator: bool, format_str: str, _prefix: str = "",
+) -> None:  # fmt: skip
     """List the contents of a tree object
 
     Parameters:
@@ -162,7 +158,7 @@ def ls_tree(
     if type(obj) is not GitTree:
         raise TypeError(f"fatal: {sha1} do not point to valid GitTree")
 
-    if not any([recurse_trees, always_trees, only_trees]):
+    if not any([only_trees, recurse_trees, always_trees]):
         always_trees = True  # set always_trees, if no
 
     for leaf in obj.data:
@@ -183,18 +179,43 @@ def ls_tree(
             if always_trees or only_trees:
                 print(prettify(leaf, format_str, obj_fmt, _prefix), end=endl)
             if recurse_trees:
-                ls_tree(
-                    repo,
-                    leaf.sha1,
-                    only_trees,
-                    recurse_trees,
-                    always_trees,
-                    null_terminator,
-                    format_str,
-                    _prefix=os.path.join(_prefix, leaf.path),
-                )
+                ls_tree(repo, leaf.sha1, only_trees, recurse_trees, always_trees,
+                    null_terminator, format_str, _prefix=os.path.join(_prefix, leaf.path))  # fmt: skip
+
         elif not only_trees:
             print(prettify(leaf, format_str, obj_fmt, _prefix), end=endl)
+
+
+def ls_files(repo: GitRepository, fmt: str, endl: str = "\n") -> None:
+    """"""
+
+    def prettify(entry: GitIndexEntry, format_str: str) -> str:
+        obj_type: str = {0o10: "blob", 0o12: "symlink", 0o16: "commit"}[entry.mode_type]
+
+        format_str = format_str.replace("%(objectmode)", f"{entry.mode_type:02o}{entry.mode_perms:04o}")  # fmt: skip
+        format_str = format_str.replace("%(objecttype)", f"{obj_type}")
+        format_str = format_str.replace("%(objectname)", f"{entry.sha1}")
+        format_str = format_str.replace("%(objectsize)", f"{entry.file_size}")
+        format_str = format_str.replace("%(stage)", f"{entry.flag_stage}")
+        format_str = format_str.replace("%(path)", f"{entry.name}")
+
+        # Extras
+        format_str = format_str.replace("%(ctime)", f"{entry.ctime_s}:{entry.ctime_n}")
+        format_str = format_str.replace("%(mtime)", f"{entry.mtime_s}:{entry.mtime_n}")
+        format_str = format_str.replace("%(ctime:iso)", f"{datetime.fromtimestamp(entry.ctime_s)}")  # fmt: skip
+        format_str = format_str.replace("%(mtime:iso)", f"{datetime.fromtimestamp(entry.mtime_s)}")  # fmt: skip
+        format_str = format_str.replace("%(dev)", f"{entry.dev}")
+        format_str = format_str.replace("%(ino)", f"{entry.ino}")
+        format_str = format_str.replace("%(uid)", f"{entry.uid}")
+        format_str = format_str.replace("%(gid)", f"{entry.gid}")
+        format_str = format_str.replace("%(gid)", f"{entry.gid}")
+        format_str = format_str.replace("%(flags)", f"{entry.flag_assume_valid}{entry.flag_stage}")  # fmt: skip
+
+        return format_str
+
+    index: GitIndex = index_read(repo)
+    for entry in index.entries:
+        print(prettify(entry, fmt))
 
 
 def checkout(repo: GitRepository, tree: GitTree, path: str, quiet: bool) -> None:
@@ -222,9 +243,7 @@ def checkout(repo: GitRepository, tree: GitTree, path: str, quiet: bool) -> None
                 file.write(obj.data)
 
 
-def show_ref(
-    repo: GitRepository, refs: list, only_sha1: bool, deref: bool, prefx="refs"
-) -> None:
+def show_ref(repo: GitRepository, refs: list, only_sha1: bool, deref: bool, prefx="refs") -> None:  # fmt: skip
     """List references in repo under ref, verify them, and print relevant information
 
     Parameters:

@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `ngit show-ref` that list references stored in `.git/refs`
 - Added `ngit tag` that can create, delete and list tags, and is based on `show-ref`'s backend
 - Added a stupid `ngit rev-parse` de-reference tags, branches, short-hashes etc
+- Added a `ngit ls-files` to parse and show `.git/index`
 
 
 ### Changed
