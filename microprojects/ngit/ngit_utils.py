@@ -4,6 +4,7 @@ from datetime import datetime
 
 from microprojects.ngit.repository import GitRepository, repo_dir, repo_file, ref_list
 from microprojects.ngit.repository import GitIndex, GitIndexEntry
+from microprojects.ngit.repository import GitIgnore, gitignore_check_rule
 from microprojects.ngit.object import GitObject, GitCommit, GitBlob, GitTag, GitTree
 from microprojects.ngit.object_utils import object_read, object_find, object_write
 from microprojects.ngit.object_utils import object_pick, shortify_hash, index_read
@@ -262,3 +263,32 @@ def show_ref(repo: GitRepository, refs: list, only_sha1: bool, deref: bool, pref
             print(val, "" if only_sha1 else os.path.join(prefx, ref))
         else:
             show_ref(repo, val, only_sha1, deref, prefx=os.path.join(prefx, ref))
+
+
+def check_ignore(rules: GitIgnore, path: str) -> bool:
+    """"""
+
+    if os.path.isabs(path):
+        raise ValueError(f"{path=} should be relative, not absolute")
+
+    # Checking against scoped rules first
+    parent_dir: str = os.path.dirname(path)
+    while True:
+        if parent_dir in rules.scoped:
+            status: bool | None = gitignore_check_rule(rules.scoped[parent_dir], path)
+            if status is not None:
+                return status
+        if parent_dir == "":  # base case, reached root directory
+            break
+
+        parent_dir = os.path.dirname(parent_dir)  # recurse backward until matched
+
+    # Check against absolute rules, if no scoped rule matched
+    parent_dir = os.path.dirname(path)
+    for rule in rules.absolute:
+        status = gitignore_check_rule(rule, path)
+        if status is not None:
+            return status
+
+    # Nothing matched, return False
+    return False

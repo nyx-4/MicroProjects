@@ -2,11 +2,11 @@ import hashlib  # ngit uses SHA-1 hash extensively
 import os  # os and os.path provide some nice filesystem abstraction routines
 import zlib  # to compress & decompress files
 import re
-import math
 
 
 from microprojects.ngit.repository import GitRepository, repo_file, resolve_ref
-from microprojects.ngit.repository import repo_dir, GitIndex, GitIndexEntry
+from microprojects.ngit.repository import repo_dir, GitIndex, GitIndexEntry, GitIgnore
+from microprojects.ngit.repository import gitignore_parse
 from microprojects.ngit.object import GitObject, GitBlob, GitCommit, GitTag, GitTree
 
 
@@ -299,3 +299,34 @@ def index_read(repo) -> GitIndex:
 
         entries.append(GitIndexEntry(**kwargs, sha1=sha1, name=raw_name.decode()))
     return GitIndex(version=version, entries=entries)
+
+
+def gitignore_read(repo) -> GitIgnore:
+    """"""
+    ignore_list: GitIgnore = GitIgnore(absolute=[], scoped={})
+
+    # Read local configuration in .git/info/exclude
+    local_gitignore: str = repo_file(repo, "info/exclude")
+
+    # Read global configuration in $XDG_CONFIG_HOME/git/ignore
+    if "XDG_CONFIG_HOME" in os.environ:  # check for $XDG_CONFIG_HOME
+        global_gitignore = os.path.join(os.environ["XDG_CONFIG_HOME"], "git/ignore")
+    else:  # else fall-back to ~/.config
+        global_gitignore = os.path.expanduser("~/.config/git/ignore")
+
+    # Parse local and global .gitignore configurations
+    for gitignore_path in (local_gitignore, global_gitignore):
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r") as ignore_file:
+                ignore_list.absolute.append(gitignore_parse(ignore_file.readlines()))
+
+    #
+    # Read scoped configuration (staged .gitignore files in .git/index)
+    index: GitIndex = index_read(repo)
+    for i in index.entries:
+        if i.name == ".gitignore" or i.name.endswith("/.gitignore"):
+            key: str = os.path.dirname(i.name)
+            rules: list[str] = object_read(repo, i.sha1).data.decode().splitlines()
+            ignore_list.scoped[key] = gitignore_parse(rules)
+
+    return ignore_list

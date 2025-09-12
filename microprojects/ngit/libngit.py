@@ -12,12 +12,14 @@ import os  # os and os.path provide some nice filesystem abstraction routines
 import sys  # to access `sys.argv`
 # import zlib  # to compress & decompress files
 
+from .repository import GitIgnore
 from microprojects.ngit.object import GitObject, GitCommit, GitTree
 from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
 from microprojects.ngit.repository import resolve_ref, ref_list, tag_list
 from microprojects.ngit.object_utils import object_find_f, object_read, tag_create
+from microprojects.ngit.object_utils import gitignore_read
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
-from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files
+from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files, check_ignore
 from microprojects.ngit.log import print_logs
 
 
@@ -88,6 +90,32 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit check-ignore
+    argsp_check_ignore = arg_subparser.add_parser(  # check-ignore
+        "check-ignore",
+        prog="ngit check-ignore",
+        description="Check if given files are excluded by .gitignore or not",
+        help="Check if given files are excluded by .gitignore or not",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_check_ignore.add_argument(  # -q --quiet
+        "-q",
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Don't output anything, just set exit status to 0 if all paths are excluded else to 1",
+    )
+    argsp_check_ignore.add_argument(  # -i --stdin
+        "-i",
+        "--stdin",
+        dest="stdin",
+        action="store_true",
+        help="Read pathnames from the standard input, one per line, instead of from the command-lines",
+    )
+    argsp_check_ignore.add_argument(  # path
+        "path",
+        nargs="*",
+        help="Specify pathnames to be parsed by check-ignore",
+    )
 
     # ArgParser for ngit checkout
     argsp_checkout = arg_subparser.add_parser(  # checkout
@@ -665,7 +693,15 @@ def cmd_cat_file(args: argparse.Namespace) -> None:
 
 
 def cmd_check_ignore(args: argparse.Namespace) -> None:
-    pass
+    rules: GitIgnore = gitignore_read(repo_find_f())
+    paths: list = args.path + sys.stdin.read().splitlines() if args.stdin else args.path
+
+    for path in paths:
+        if check_ignore(rules, path):
+            if not args.quiet:
+                print(path)
+        elif args.quiet:
+            sys.exit(1)
 
 
 def cmd_checkout(args: argparse.Namespace) -> None:

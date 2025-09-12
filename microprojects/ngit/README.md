@@ -16,7 +16,6 @@ Git re-implementation in Python that is _perfectly compatible_ with with [Git SC
     - [add](#add)
     - [cat-file](#cat-file)
     - [check-ignore](#check-ignore)
-    - [checkout](#checkout)
     - [commit](#commit)
     - [hash-object](#hash-object)
     - [help](#help)
@@ -116,8 +115,31 @@ options:
 ```
 
 ### check-ignore
+```sh
+```
 
-### checkout
+> [!Warning]
+> I'm using `fnmatch`, so its impossible for `*` and `?` to respect Slash `/`
+> (unless I rewrite it using `re`)  
+> For now, `*` will behave as if it were `**`
+
+
+#### Supported Pattern Formats:
+- [x] Blank lines (for readability purposes)
+- [x] Line starting with `#` and `\#`
+- [x] Negation patterns `!` and `\!`
+- [ ] Slash `/` as directory separator
+- [x] Match only directories (Slash `/` at end of format)
+- [ ] An asterisk `*` that matches anything except Slash `/`
+- [ ] An asterisk `?` that matches anyone character except Slash `/`
+- [x] The range notation `[a-zA-Z -]` to match any single character
+- [x] Leading `**/` that matches in all directories below .gitignore
+- [x] Trailing `/**` matches everything inside with infinite depth
+- [x] Middle `/**/` matches zero or more directories
+- [ ] `**` fall-back to `*` in all other locations
+- [ ] Test it works properly even with sub-dir .gitignore
+
+
 ```sh
 usage: ngit [-h] [-q] [-f] [--dest DEST] [branch]
 

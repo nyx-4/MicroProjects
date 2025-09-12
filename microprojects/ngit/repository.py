@@ -1,5 +1,7 @@
 import configparser  # ngit's config file uses INI format
 import os  # os and os.path provide some nice filesystem abstraction routines
+from fnmatch import fnmatch
+import re
 
 
 class GitRepository(object):
@@ -83,6 +85,20 @@ class GitIndex(object):
     def __init__(self, version: int = 2, entries: list[GitIndexEntry] = []) -> None:
         self.version = version
         self.entries = entries or []  # `or []` is important part
+
+
+class GitIgnore(object):
+    """"""
+
+    absolute: list[list[tuple[str, bool]]]
+    scoped: dict[str, list[tuple[str, bool]]]
+
+    def __init__(
+        self, absolute: list[list[tuple]], scoped: dict[str, list[tuple]]
+    ) -> None:
+        """"""
+        self.absolute = absolute
+        self.scoped = scoped
 
 
 def repo_path(repo: GitRepository, *path: str) -> str:
@@ -271,3 +287,61 @@ def tag_list(repo: GitRepository, refs: dict, prefx: str = "") -> None:
             print(f"{prefx}{tagname}")
         else:
             print(f"WARNING: ignoring broken ref refs/tags/{prefx}{tagname}")
+
+
+def gitignore_parse(rules: list[str]) -> list[tuple[str, bool]]:
+    """"""
+    parsed_rules: list[tuple[str, bool]] = []
+
+    for rule in rules:
+        rule: str = rule.strip()
+        if not rule or rule.startswith("#"):
+            pass
+        elif rule.startswith("!"):
+            parsed_rules.append((rule[1:], False))
+        elif rule.startswith("\\"):
+            parsed_rules.append((rule[1:], True))
+        else:
+            parsed_rules.append((rule, True))
+
+    return parsed_rules
+
+
+def gitignore_check_rule(rules: list[tuple[str, bool]], path: str) -> bool | None:
+    """"""
+
+    def _check(path, pat, start, end) -> bool:
+        return (
+            fnmatch(path, pat)
+            or fnmatch(path, pat + end)
+            or fnmatch(path, start + pat)
+            or fnmatch(path, start + pat + end)
+        )
+
+    def _stars(path: str, pat: str, start: str, end: str, idx: int = 0) -> bool:
+        idx = pat.find("**", idx)
+        if idx == -1:  # base case
+            return _check(path, pat, start, end)
+
+        return _stars(path, pat, start, end, idx + 1) or _stars(
+            path, pat[:idx] + pat[idx + 3 :], start, end, idx + 1
+        )
+
+    def _star(path: str, pat: str, start: str, end: str, idx: int = 0) -> bool:
+        # TODO: Add single asterisk support also
+        raise NotImplementedError("Single asterisk `*` is not yet supported")
+
+    match_status: bool | None = None
+    path = os.path.normpath(path) + ("/" if path[-1] == "/" else "")
+
+    if os.path.isabs(path):  # abs path raises error on `git`
+        return False
+
+    for pattern, state in rules:
+        end: str = ("/" if pattern[-1] != "/" else "") + "*"
+        start: str = "" if "**" in pattern else "*/"
+
+        if _stars(path, pattern, start, end):
+            match_status = state
+
+    return match_status

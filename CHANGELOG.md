@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `ngit tag` that can create, delete and list tags, and is based on `show-ref`'s backend
 - Added a stupid `ngit rev-parse` de-reference tags, branches, short-hashes etc
 - Added a `ngit ls-files` to parse and show `.git/index`
+- Added a `ngit check-ignore` to debug .gitignore and exclude file from `git add`
+- Added a semi-complete .gitignore parser (incomplete support for Slash `/` as directory separator)
 
 
 ### Changed
