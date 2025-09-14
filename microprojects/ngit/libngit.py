@@ -12,12 +12,11 @@ import os  # os and os.path provide some nice filesystem abstraction routines
 import sys  # to access `sys.argv`
 # import zlib  # to compress & decompress files
 
-from .repository import GitIgnore
 from microprojects.ngit.object import GitObject, GitCommit, GitTree
 from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
-from microprojects.ngit.repository import resolve_ref, ref_list, tag_list
+from microprojects.ngit.repository import resolve_ref, ref_list, tag_list, GitIgnore
 from microprojects.ngit.object_utils import object_find_f, object_read, tag_create
-from microprojects.ngit.object_utils import gitignore_read
+from microprojects.ngit.object_utils import gitignore_read, get_obj_type, get_obj_size
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
 from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files, check_ignore
 from microprojects.ngit.log import print_logs
@@ -681,15 +680,16 @@ def cmd_add(args: argparse.Namespace) -> None:
 
 def cmd_cat_file(args: argparse.Namespace) -> None:
     repo: GitRepository = repo_find_f()
+    sha1: str = object_find_f(repo, args.object, args.type)
 
-    flag: int = (
-        1 if args.only_error else
-        2 if args.only_type else
-        3 if args.only_size else
-        4 # default flag is 4
-    )  # fmt: skip
-
-    cat_file(repo, args.object, fmt=args.type, flag=flag)
+    if args.only_type:
+        print(get_obj_type(repo, sha1))
+    elif args.only_size:
+        print(get_obj_size(repo, sha1))
+    elif args.only_error:  # just parse, don't log on screen
+        cat_file(repo, sha1, log=False, fmt=args.type)
+    else:  # logging is default, fall-back option
+        cat_file(repo, sha1, log=True, fmt=args.type)
 
 
 def cmd_check_ignore(args: argparse.Namespace) -> None:
@@ -752,7 +752,7 @@ def cmd_hash_object(args: argparse.Namespace) -> None:
     # if args.stdin_path is set, then read path from sys.stdin
     # else use paths passed in args.path
     for path in sys.stdin if args.stdin_paths else args.path:
-        with open(path) as fd:
+        with open(path, "rb") as fd:
             print(object_hash(repo, fd, args.type.encode()))
 
 
@@ -870,7 +870,7 @@ def cmd_tag(args: argparse.Namespace) -> None:
                 print("# Write a message for tag... (Ctrl+D to continue)")
                 args.message = sys.stdin.read()
             else:  # or from a file, if specified
-                with open(args.file) as msg_file:
+                with open(args.file, "rt") as msg_file:
                     args.message = msg_file.read()
 
         sha1: str = object_find_f(repo, args.commit)

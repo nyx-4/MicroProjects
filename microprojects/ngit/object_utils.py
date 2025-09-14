@@ -8,6 +8,7 @@ from microprojects.ngit.repository import GitRepository, repo_file, resolve_ref
 from microprojects.ngit.repository import repo_dir, GitIndex, GitIndexEntry, GitIgnore
 from microprojects.ngit.repository import gitignore_parse
 from microprojects.ngit.object import GitObject, GitBlob, GitCommit, GitTag, GitTree
+from microprojects.ngit.object import GitTreeLeaf
 
 
 def object_read(repo: GitRepository, sha1: str) -> GitObject:
@@ -158,6 +159,20 @@ def object_find_f(
         return obj
 
 
+def get_obj_type(repo, sha1) -> str:
+    """Get object's type without fully parsing the GitObject"""
+    with open(repo_file(repo, "objects", sha1[:2], sha1[2:]), "rb") as obj_file:
+        type: bytes = zlib.decompress(obj_file.read())
+
+    return type[: type.find(b" ")].decode()
+
+
+def get_obj_size(repo, sha1) -> int:
+    """Get object's size after decompressing"""
+    with open(repo_file(repo, "objects", sha1[:2], sha1[2:]), "rb") as obj_file:
+        return len(zlib.decompress(obj_file.read()))
+
+
 def object_resolve(repo: GitRepository, obj_name: str) -> set:
     """Resolve name to an object hash in repo (where name is short-hash, long-hash, 'HEAD', tags, branches etc)
 
@@ -230,13 +245,13 @@ def tag_create(
         sha1 = object_write(repo, tag_obj)  # update sha1 to point to GitTag
 
     # write to refs/tags regardless of `annotate` flag
-    with open(repo_file(repo, f"refs/tags/{tagname}"), "w") as tag_file:
+    with open(repo_file(repo, f"refs/tags/{tagname}"), "wt") as tag_file:
         tag_file.write(sha1 + "\n")
 
     return sha1
 
 
-def index_read(repo) -> GitIndex:
+def index_read(repo: GitRepository) -> GitIndex:
     """"""
 
     def bin_read(raw_data: bytes) -> int:
@@ -301,6 +316,47 @@ def index_read(repo) -> GitIndex:
     return GitIndex(version=version, entries=entries)
 
 
+def index_write(repo: GitRepository, index: GitIndex) -> None:
+    """"""
+
+    def _bin(number: int) -> bytes:
+        """A helper function to converts int to 4 big-endian bytes"""
+        return number.to_bytes(4, "big")
+
+    with open(repo_file(repo, "index"), "wb") as idx:
+        idx.write(b"DIRC")
+        idx.write(_bin(index.version))
+        idx.write(_bin(len(index.entries)))
+
+        i: int = 0
+        for entry in index.entries:
+            idx.write(_bin(entry.ctime_s))
+            idx.write(_bin(entry.ctime_n))
+            idx.write(_bin(entry.mtime_s))
+            idx.write(_bin(entry.mtime_n))
+            idx.write(_bin(entry.dev))
+            idx.write(_bin(entry.ino))
+            idx.write(_bin((entry.mode_type << 12) | entry.mode_perms))
+            idx.write(_bin(entry.uid))
+            idx.write(_bin(entry.gid))
+            idx.write(_bin(entry.file_size))
+            idx.write(int(entry.sha1, 16).to_bytes(20, "big"))
+
+            len_name: int = len(entry.name.encode())
+            flag: int = 1 << 15 if entry.flag_assume_valid else 0
+            idx.write((flag | entry.flag_stage | len_name).to_bytes(2, "big"))
+
+            idx.write(entry.name.encode())
+            idx.write((0).to_bytes(1, "big"))
+
+            i += 62 + len_name + 1
+
+            if i % 8 != 0:
+                pad: int = 8 - (i % 8)
+                idx.write((0).to_bytes(pad, "big"))
+                i += pad
+
+
 def gitignore_read(repo) -> GitIgnore:
     """"""
     ignore_list: GitIgnore = GitIgnore(absolute=[], scoped={})
@@ -317,7 +373,7 @@ def gitignore_read(repo) -> GitIgnore:
     # Parse local and global .gitignore configurations
     for gitignore_path in (local_gitignore, global_gitignore):
         if os.path.exists(gitignore_path):
-            with open(gitignore_path, "r") as ignore_file:
+            with open(gitignore_path, "rt") as ignore_file:
                 ignore_list.absolute.append(gitignore_parse(ignore_file.readlines()))
 
     #
@@ -330,3 +386,77 @@ def gitignore_read(repo) -> GitIgnore:
             ignore_list.scoped[key] = gitignore_parse(rules)
 
     return ignore_list
+
+
+def flatten_tree(repo: GitRepository, ref: str, prefix: str = "") -> dict[str, str]:
+    """tree -> index"""
+    flat_tree: dict[str, str] = {}
+    tree: GitObject = object_read(repo, object_find_f(repo, ref, fmt="tree"))
+
+    assert type(tree) is GitTree
+
+    for leaf in tree.data:
+        if leaf.mode.startswith("04"):
+            # dict1.update(dict2) appends dict2 in dict1 (like union on sets)
+            flat_tree.update(flatten_tree(repo, leaf.sha1, prefix + leaf.path + "/"))
+        else:
+            flat_tree[prefix + leaf.path] = leaf.sha1
+
+        # print(leaf.__dict__)
+    return flat_tree
+
+
+def unflat_index(repo: GitRepository, index: GitIndex) -> str:
+    """index -> tree"""
+    contents: dict[str, list[GitIndexEntry | tuple]] = {"": []}
+
+    # build contents in recursive form with each sub_dir appearing once
+    for entry in index.entries:
+        dirname: str = os.path.dirname(entry.name)
+
+        key: str = dirname
+        while key != "":
+            if key not in contents:
+                contents[key] = []
+            key = os.path.dirname(key)
+
+        contents[dirname].append(entry)
+
+    sha1: str = ""
+    sorted_paths: list[str] = sorted(contents.keys(), key=len, reverse=True)
+
+    for path in sorted_paths:
+        tree: GitTree = GitTree()
+
+        for entry in contents[path]:
+            if type(entry) is GitIndexEntry:
+                mode: str = f"{entry.mode_type:02o}{entry.mode_perms:04o}"  # to octal
+                leaf = GitTreeLeaf(mode, entry.sha1, os.path.basename(entry.name))
+            elif type(entry) is tuple:  # tuple(basename, sha1)
+                leaf = GitTreeLeaf("040000", path=entry[0], sha1=entry[1])
+            else:
+                raise ValueError(f"{contents} must only contain GitIndexEntry or tuple")
+
+            tree.data.append(leaf)
+
+        sha1 = object_write(repo, tree)
+        basename: str = os.path.basename(path)
+        parent: str = os.path.dirname(path)
+
+        contents[parent].append((basename, sha1))
+
+    return sha1
+
+
+if __name__ == "__main__":
+    from microprojects.ngit.repository import repo_find_f
+    from pprint import pprint
+
+    index: GitIndex
+
+    index = index_read(repo_find_f())
+
+    # print(*(i.__dict__ for i in index), sep="\n\n")
+    # pprint(unflat_index(repo_find_f(), index_read(repo_find_f())))
+
+    index_write(repo_find_f(), index)

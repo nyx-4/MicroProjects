@@ -209,6 +209,18 @@ def repo_find_f(path: str = ".") -> GitRepository:
     return repo_find(path, required=True)  # type: ignore
 
 
+def cur_branch(repo: GitRepository) -> str | None:
+    """Get the currently active branch in repo by de-ref'ing .git/HEAD
+    or `False` if HEAD in detached state"""
+    with open(repo_file(repo, "HEAD"), "rt") as head:
+        branch: str = head.read()
+
+    if branch.startswith("ref: refs/heads/"):
+        return branch[16:-1]
+    else:
+        return None
+
+
 def resolve_ref(repo: GitRepository, ref: str) -> str | None:
     """Git References are pointers to interesting commit,
     resolve_ref converts ref to absolute sha1 of object
@@ -225,7 +237,7 @@ def resolve_ref(repo: GitRepository, ref: str) -> str | None:
     if not os.path.isfile(ref_path):  # sometimes refs are broken, and its fine
         return None
 
-    with open(ref_path) as ref_file:
+    with open(ref_path, "rt") as ref_file:
         new_ref: str = ref_file.read()[:-1]
 
     if new_ref.startswith("ref: "):  # recursive case, in case of indirect references

@@ -16,6 +16,7 @@ Git re-implementation in Python that is _perfectly compatible_ with with [Git SC
     - [add](#add)
     - [cat-file](#cat-file)
     - [check-ignore](#check-ignore)
+    - [checkout](#checkout)
     - [commit](#commit)
     - [hash-object](#hash-object)
     - [help](#help)
@@ -140,6 +141,7 @@ options:
 - [ ] Test it works properly even with sub-dir .gitignore
 
 
+### checkout
 ```sh
 usage: ngit [-h] [-q] [-f] [--dest DEST] [branch]
 

@@ -62,50 +62,43 @@ def repo_create(path: str, branch: str = "main", quiet: bool = False) -> GitRepo
     assert repo_dir(repo, "refs", "heads", mkdir=True)
     assert repo_dir(repo, "refs", "tags", mkdir=True)
 
-    with open(repo_file(repo, "HEAD"), "w") as file:
+    with open(repo_file(repo, "HEAD"), "wt") as file:
         file.write(f"ref: refs/heads/{branch}\n")
 
     # .git/description
-    with open(repo_file(repo, "description"), "w") as file:
+    with open(repo_file(repo, "description"), "wt") as file:
         file.write(
             "Unnamed repository; edit this file 'description' to name the repository.\n"
         )
 
-    with open(repo_file(repo, "config"), "w") as file:
+    with open(repo_file(repo, "config"), "wt") as file:
         config = repo_default_config()
         config.write(file)
 
     return repo
 
 
-def cat_file(repo: GitRepository, sha1: str, flag: int, fmt: str | None = None) -> None:
+def cat_file(repo: GitRepository, sha1: str, log: bool, fmt: str | None = None) -> None:
     """Provide contents or details of GitObjects
 
     Parameters:
         repo (GitRepository): The current working git repository
         sha1 (str): The sha1 of object to read
-        flag (int): controls what information gets printed on screen (range: 1-4)
+        log (bool): print/log GitObject on screen or not
         fmt (str | None): The expected format of `object`
 
     Returns:
         None (None): have side-effect (prints on screen), so returns `None` to enforce this behavior
     """
-    obj: GitObject = object_read(repo, str(object_find(repo, sha1, fmt)))
+    obj: GitObject = object_read(repo, sha1)
 
     if fmt is not None and fmt != obj.fmt.decode():
         print(
             f"WARNING: Invalid type '{fmt}' specified, reading '{sha1}' as '{obj.fmt.decode()}'"
         )
 
-    # TODO: rather than reading tuple, use int because all flags are disrete
-    if flag == 1:  # only_errors
-        pass
-    elif flag == 2:  # only_type
-        print(obj.fmt.decode())
-    elif flag == 3:  # only_size
-        print(len(obj.data.decode()))
-    else:  # pretty_print is default
-        print(obj.data.decode())
+    if log is True:
+        print(obj.data.decode())  # TODO: data can be bytes, list or dict
 
 
 def object_hash(repo: GitRepository | None, file, fmt: bytes) -> str:
@@ -119,7 +112,7 @@ def object_hash(repo: GitRepository | None, file, fmt: bytes) -> str:
     Returns:
         SHA-1 (str): The computed SHA-1 hash of object after formatting header
     """
-    data: bytes = file.read().encode()
+    data: bytes = file.read()
 
     return object_write(repo, object_pick(fmt.decode(), data, ""))
 
