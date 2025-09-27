@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `ngit ls-files` to parse and show `.git/index`
 - Added a `ngit check-ignore` to debug .gitignore and exclude file from `git add`
 - Added a semi-complete .gitignore parser (incomplete support for Slash `/` as directory separator)
+- Added missing doc-strings and cleaned some code
 
 
 ### Changed

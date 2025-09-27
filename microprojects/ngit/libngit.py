@@ -1,25 +1,16 @@
-import argparse  # ngit is CLI tool, so we need to parse CLI args
-
-# import configparser  # ngit's config file uses INI format
-# from datetime import datetime  # to store time of each commit
-# import grp, pwd  # because ngit saves numerical owner/group ID of files author
-# from fnmatch import fnmatch  # to match .gitignore patterns like *.txt
-# import hashlib  # ngit uses SHA-1 hash extensively
-# import math
-import os  # os and os.path provide some nice filesystem abstraction routines
-
-# import re  # just a little-bit of RegEx
-import sys  # to access `sys.argv`
-# import zlib  # to compress & decompress files
+import argparse
+import os
+import sys
 
 from microprojects.ngit.object import GitObject, GitCommit, GitTree
 from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
-from microprojects.ngit.repository import resolve_ref, ref_list, tag_list, GitIgnore
+from microprojects.ngit.repository import GitIgnore, resolve_ref, ref_list, tag_list
 from microprojects.ngit.object_utils import object_find_f, object_read, tag_create
 from microprojects.ngit.object_utils import gitignore_read, get_obj_type, get_obj_size
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
 from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files, check_ignore
 from microprojects.ngit.log import print_logs
+from microprojects.ngit.status import filter_paths
 
 
 def ngit_main() -> None:
@@ -41,6 +32,39 @@ def ngit_main() -> None:
     arg_subparser.required = True
 
     # ArgParser for ngit add
+    argsp_add = arg_subparser.add_parser(  # add
+        "add",
+        prog="ngit add",
+        description="Add file contents to the index",
+        help="Add file contents to the index",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_add.add_argument(  # -f --force
+        "-f",
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Allow adding otherwise ignored files",
+    )
+    argsp_add.add_argument(  # -A --all --no-ignore-removal
+        "-A",
+        "--all",
+        "--no-ignore-removal",
+        dest="all",
+        action="store_true",
+        help="All files in entire worktree will be added to GitIndex",
+    )
+    argsp_add.add_argument(  # --ignore-errors
+        "--ignore-errors",
+        dest="no_errors",
+        action="store_true",
+        help="If some files could not be added, do not abort the operation, but continue adding the others",
+    )
+    argsp_add.add_argument(  # paths
+        "paths",
+        nargs="*",
+        help="Files to add content from",
+    )
 
     # ArgParser for ngit cat-file
     argsp_cat_file = arg_subparser.add_parser(  # cat-file
@@ -480,6 +504,54 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit rm
+    argsp_rm = arg_subparser.add_parser(  # rm
+        "rm",
+        prog="ngit rm",
+        description="Remove files from the working tree and from the index",
+        help="Remove files from the working tree and from the index",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_rm.add_argument(  # -f --force
+        "-f",
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Override the up-to-date check",
+    )
+    argsp_rm.add_argument(  # -q --quiet
+        "-q",
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Suppress all output except errors and warnings",
+    )
+    argsp_rm.add_argument(  # -r --recursive
+        "-r",
+        "--recursice",
+        dest="recursive",
+        action="store_true",
+        help="Allow recursive removal when a leading directory name is given",
+    )
+    argsp_rm.add_argument(  # --cached
+        "--cached",
+        dest="cached",
+        action="store_true",
+        help="Use this option to unstage and remove paths only from the index. "
+        "Working tree files, whether modified or not, will be left alone",
+    )
+    argsp_rm.add_argument(  # -i --stdin --pathspec-from-file
+        "-i",
+        "--stdin",
+        "--pathspec-from-file",
+        dest="stdin",
+        metavar="<path>",
+        help="Pathspec is passed in <file> instead of args, if <file> is exactly - then standard input is used",
+    )
+    argsp_rm.add_argument(  # paths
+        "paths",
+        nargs="*",
+        help="Files to add content from",
+    )
 
     # ArgParser for ngit show-ref
     argsp_show_ref = arg_subparser.add_parser(  # show-ref
@@ -563,6 +635,55 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit status
+    argsp_staus = arg_subparser.add_parser(
+        "status",
+        prog="ngit status",
+        description="Show the working tree status",
+        help="Show the working tree status",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_staus.add_argument(  # -s --short
+        "-s",
+        "--short",
+        dest="short",
+        action="store_true",
+        help="Give the output in the short-format",
+    )
+    argsp_staus.add_argument(  # -b --branch
+        "-b",
+        "--branch",
+        dest="branch",
+        action="store_true",
+        help="Show the branch and tracking info even in short-format",
+    )
+    argsp_staus.add_argument(  # --porcelain
+        "--porcelain",
+        dest="porcelain",
+        action="store_true",
+        help="Give the output in an easy-to-parse format for scripts",
+    )
+    argsp_staus.add_argument(  # --long
+        "--long",
+        dest="long",
+        action="store_true",
+        help="Give the output in the long-format (default)",
+    )
+    argsp_staus.add_argument(  # -u --untracked-files
+        "-u",
+        "--untracked-files",
+        dest="untracked",
+        choices=["all", "normal", "no"],
+        default="all",
+        const="all",
+        nargs="?",
+        help="Show untracked files",
+    )
+    argsp_staus.add_argument(  # paths
+        "paths",
+        nargs="*",
+        help="Files to add content from",
+    )
+
     # ArgParser for ngit tag
     argsp_tag = arg_subparser.add_parser(
         "tag",

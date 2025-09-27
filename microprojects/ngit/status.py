@@ -1,13 +1,28 @@
 import os
+from datetime import datetime
 
 
 from microprojects.ngit.repository import GitRepository, GitIndex, GitIndexEntry
 from microprojects.ngit.object_utils import flatten_tree, index_read, index_write
+from microprojects.ngit.object_utils import object_write, gitignore_read
+from microprojects.ngit.object import GitCommit
+from microprojects.ngit.ngit_utils import check_ignore
 from microprojects.ngit.libngit import object_hash
 
 
-def get_changes_head_index(repo: GitRepository, index: GitIndex) -> dict:
-    """"""
+def get_changes_head_index(repo: GitRepository, index: GitIndex) -> dict[str, list]:
+    """Returns **'Changes to be committed'**, that is the changes between
+    last commit _(HEAD)_ and staging area _(index)_
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        index (GitIndex): Parsed `.git/index`, the staging area
+
+    Returns:
+        changes (dict[str, list]): The dict with ['modified', 'new file', 'deleted'] as keys,
+            and a list of filenames as respective values
+    """
+
     changes: dict[str, list] = {
         "modified": [],
         "new file": [],
@@ -29,8 +44,18 @@ def get_changes_head_index(repo: GitRepository, index: GitIndex) -> dict:
     return changes
 
 
-def get_changes_index_worktree(repo: GitRepository, index: GitIndex) -> dict:
-    """"""
+def get_changes_index_worktree(repo: GitRepository, index: GitIndex) -> dict[str, list]:
+    """Returns **'Changes not staged for commit'** and **'Untracked files**', that is
+    the changes between staging area _(index)_ and worktree _(file system)_
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        index (GitIndex): Parsed `.git/index`, the staging area
+
+    Returns:
+        changes (dict[str, list]): The dict with ['modified', 'deleted', 'untracked'] as keys,
+            and a list of filenames as respective values
+    """
     changes: dict[str, list] = {
         "modified": [],
         "deleted": [],
@@ -71,13 +96,21 @@ def get_changes_index_worktree(repo: GitRepository, index: GitIndex) -> dict:
 
 
 def rm_from_index(
-    repo: GitRepository,
-    paths: list[str],
-    delete: bool = True,
-    skip_missing: bool = False,  # TODO: rename this flag to be shorter, or add more flags
-    write: bool = True,
-) -> GitIndex:
-    """"""
+    repo: GitRepository, paths: list[str], delete: bool = True, skip_missing: bool = False,
+    write: bool = True
+) -> GitIndex:  # fmt: skip
+    """Remove a list of files from index, so that next commit wouldn't include those files
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        paths (list[str]): A list of paths to remove from staging area
+        delete (bool): **Use with Caution** if True, delete file from worktree also
+        skip_missing (bool): if True, ignore paths that are not in worktree
+        write (bool): if True, write-back the updated index
+
+    Returns:
+        index (GitIndex): The updated index after removing these paths from GitIndex
+    """
     index: GitIndex = index_read(repo)
     worktree: str = repo.worktree + os.sep
 
@@ -92,7 +125,7 @@ def rm_from_index(
         if abspath.startswith(worktree):
             to_be_rm.add(abspath)
         else:  # The requested is outside worktree
-            raise NameError(f"{path} is outside the repository at '{worktree}'")
+            raise PermissionError(f"can't remove {path} outside of '{worktree = }'")
 
     for entry in index.entries:
         abspath = os.path.join(worktree, entry.name)
@@ -104,7 +137,7 @@ def rm_from_index(
 
     if len(to_be_rm) > 0 and skip_missing is False:  # not all `to_be_rm` are in index
         rel_paths: list[str] = [path.removeprefix(worktree) for path in to_be_rm]
-        raise NameError(f"pathspec {rel_paths} did not match any files")
+        raise FileNotFoundError(f"pathspec {rel_paths} did not match any files")
 
     if delete:
         for path in rm_paths:
@@ -113,16 +146,26 @@ def rm_from_index(
     index.entries = kept_entries
     if write is True:  # micro-optimization, when calling from `ngit add`
         index_write(repo, index)
+
     return index
 
 
 def add_to_index(repo: GitRepository, paths: list[str]) -> GitIndex:
-    """"""
+    """Add a list of files to index, so that next commit will include these files also
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        paths (list[str]): A list of paths to add to staging area
+
+    Returns:
+        index (GitIndex): The updated index after adding these paths to GitIndex
+    """
     index: GitIndex = rm_from_index(repo, paths, delete=False, skip_missing=True, write=False)  # fmt: skip
     worktree: str = repo.worktree + os.sep
 
     clean_paths: set = set()
 
+    # get all paths to add
     for path in paths:
         abspath: str = os.path.abspath(path)
         relpath: str = os.path.relpath(abspath, worktree)
@@ -130,7 +173,7 @@ def add_to_index(repo: GitRepository, paths: list[str]) -> GitIndex:
         # some sanity checks
         if not os.path.exists(abspath):  # file do not exists
             raise FileNotFoundError(f"{relpath} not found")
-        if not os.path.isfile(abspath):  # its a directory, or
+        if not os.path.isfile(abspath):  # TODO: add all files recursively
             raise IsADirectoryError(f"{abspath} is not a file")
         if not abspath.startswith(worktree):  # outside git's worktree
             raise NameError(f"{path} is outside the repository at '{worktree}'")
@@ -167,12 +210,78 @@ def add_to_index(repo: GitRepository, paths: list[str]) -> GitIndex:
     return index
 
 
-def commit_create() -> None:
-    """"""
+def commit_create(
+    repo:GitRepository, tree: str, parents: list[str], authors: list[str],
+    committers: list[str], timestamp: datetime, message: str,
+) -> str:  # fmt: skip
+    """Create a new commit with the provided information and returns its SHA1
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        tree (str): The SHA-1 of tree that this commit will represent
+        parents (list[str]): The list of parents for this commit
+        authors (list[str]): The list of authors for this commit
+        committers (list[str]): The list of committers for this commit
+        timestamp (datetime): The datetime when this commit was instantitated
+            (Note: same time will be used for all authors and committers)
+        message (str): A properly formatted commit message along with optional note
+
+    Returns:
+        SHA-1 (str): The computed SHA-1 hash of object after formatting header
+    """
+    commit: GitCommit = GitCommit()
+    commit.data[b"tree"] = tree.encode()
+    if parents:  # i.e., its not first commit
+        commit.data[b"parent"] = [parent.encode() for parent in parents]
+
+    tz: int | str = int(timestamp.astimezone().utcoffset().total_seconds())
+    tz = f"{'+' if tz > 0 else '-'}{tz // 3600:02}{tz % 3600 // 60:02}"
+    offset: str = f"{int(timestamp.timestamp())} {tz}"
+
+    commit.data[b"author"] = [f"{author} {offset}".encode() for author in authors]
+    commit.data[b"committer"] = [f"{komitr} {offset}".encode() for komitr in committers]
+
+    commit.data[None] = message.encode() + b"\n"
+
+    return object_write(repo, commit)
+
+
+def filter_paths(paths: list[str], ignored) -> list[str]:
+    """Get all files under paths, that are not ignored
+
+    Parameters:
+        paths (list[str]): list of filepaths and dirs
+        ignored (Callable): function that takes abspath and returns False if abspath is not ignored
+
+    Returns:
+        fpaths (list[str]): list of filepaths that are not ignored (no dirs)
+    """
+    fpaths: list[str] = []
+
+    for path in paths:
+        abspath: str = os.path.abspath(path)
+
+        if os.path.isdir(abspath):
+            for parent, _, files in os.walk(abspath):
+                for file in files:
+                    filepath: str = os.path.join(parent, file)
+
+                    if not ignored(filepath):
+                        fpaths.append(filepath)
+        else:
+            if not ignored(abspath):
+                fpaths.append(abspath)
+
+    return fpaths
 
 
 if __name__ == "__main__":
-    from pprint import pprint
-    from microprojects.ngit.repository import repo_find_f
+    from microprojects.ngit.repository import repo_find_f, GitIgnore
 
-    print([i.__dict__ for i in add_to_index(repo_find_f(), ["hello"]).entries])
+    repo: GitRepository = repo_find_f()
+    rules: GitIgnore = gitignore_read(repo)
+
+    def checker(path) -> bool:
+        return check_ignore(rules, os.path.relpath(path, repo.worktree))
+
+    print(*filter_paths(["."], checker), sep="\n")

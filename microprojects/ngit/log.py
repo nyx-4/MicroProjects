@@ -28,7 +28,7 @@ def print_logs(
         date_fmt (str): The format to use for dates in `ngit log`.
 
     Returns:
-        None (None): print_log just has side-effects, no return value
+        None (None): have side-effect (prints on screen), so returns `None` to enforce this behavior
     """
     obj: GitObject = object_read(repo, sha1)
 
@@ -123,13 +123,13 @@ def prettify(
 
     Parameters:
         kvlm (dict): The dict with required information to put in `format_str`
-        format_str (str): The str containing the required format
+        format_str (str): The str containing the desired format
         shortify: A function that takes in object's ref and returns a shortified sha1 of minimum len 7
         commit_sha1 (str): The SHA1 of current commit, as it's not in KVLM
         date_fmt (str): The date format to use for dates
 
     Returns:
-        format_str (str): The format_str, with supported formats replaced by respective value
+        format_str (str): The format_str, with supported formats replaced by respective values
     """
 
     # Git escape character
@@ -248,8 +248,6 @@ def _ftime(fmt: str) -> str:
     """Convert human-readable/standard time formats to one used by `strftime`"""
     fmt = fmt.lower()
     match fmt:
-        case "local":
-            return ""
         case "iso" | "iso8601":
             return "%Y-%m-%d %H:%M:%S %z"
         case "iso-strict" | "iso8601-strict":
@@ -258,7 +256,7 @@ def _ftime(fmt: str) -> str:
             return "%a, %-d %b %Y %H:%M:%S %z"
         case "short":
             return "%Y-%m-%d"
-        case "default":
+        case "default" | "local":
             return "%c %z"
         case _:
             return fmt

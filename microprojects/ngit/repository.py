@@ -1,7 +1,6 @@
-import configparser  # ngit's config file uses INI format
-import os  # os and os.path provide some nice filesystem abstraction routines
+import configparser
+import os
 from fnmatch import fnmatch
-import re
 
 
 class GitRepository(object):
@@ -15,7 +14,7 @@ class GitRepository(object):
 
     worktree: str = ""
     git_dir: str = ""
-    conf = None
+    conf: configparser.ConfigParser = configparser.ConfigParser()
 
     def __init__(self, path: str, force: bool = False) -> None:
         """Create an empty Git repository or reinitialize an existing one
@@ -32,13 +31,20 @@ class GitRepository(object):
             raise TypeError(f"fatal: not a git repository: {path}")
 
         # Read configuration files in .git/config
-        self.conf = configparser.ConfigParser()
-        conf_file = repo_path(self, "config")
+        local_conf: str = repo_path(self, "config")
+        xdg_config_home: str = os.environ.get("XDG_CONFIG_HOME", "~/.config")
+
+        conf_files: tuple[str, ...] = (
+            "/etc/gitconfig",
+            os.path.expanduser(os.path.join(xdg_config_home, "git/config")),
+            os.path.expanduser("~/.gitconfig"),
+            local_conf,
+        )
 
         # Read version number and raise if ver != 0
-        if conf_file and os.path.exists(conf_file):
-            self.conf.read([conf_file])
-        elif not force:
+        self.conf.read(conf_files)
+
+        if not os.path.exists(local_conf) and force is False:
             raise FileNotFoundError("Configuration file missing")
 
         if not force:
@@ -48,14 +54,54 @@ class GitRepository(object):
 
 
 class GitIndexEntry(object):
-    """"""
+    """GitIndexEntry that stores SHA-1 and some metadata about the file being referenced
+
+    Attributes:
+        ctime_s (int): 32-bit ctime seconds, the last time a file's metadata changed
+        ctime_n (int): 32-bit ctime nanosecond fractions
+        mtime_s (int): 32-bit mtime seconds, the last time a file's data changed
+        mtime_n (int): 32-bit mtime nanosecond fractions
+        dev (int): 32-bit device number (where file is stored)
+        ino (int): 32-bit inode number (where file is stored)
+        mode_type (int): 4-bit object type. valid values in binary are:
+            1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
+        mode_perms (int): 9-bit unix permission
+            Only 0755 and 0644 are are valid for regular files, symlinks/gitlinks have 0 here
+        uid (int): 32-bit user id of owner
+        gid (int): 32-bit group id of owner
+        file_size (int): 32-bit file size (on-disk, truncated to 32-bit)
+        sha1 (str): The SHA-1 of file being referenced by this entry
+        flag_assume_valid (int): 1-bit assume-valid flag
+        flag_stage (int): 2-bit stage (during merge)
+        name (str): Entry path name (relative to top level directory, without leading or trailing slash)
+    """
 
     def __init__(
         self, ctime_s: int, ctime_n: int, mtime_s: int, mtime_n: int, dev: int, ino: int,
         mode_type: int, mode_perms: int, uid: int, gid: int, file_size: int, sha1: str,
-        flag_assume_valid: int, flag_stage: int, name: str
+        flag_assume_valid: int, flag_stage: int, name: str,
     ) -> None:  # fmt: skip
-        """"""
+        """GitIndexEntry that stores SHA-1 and some metadata about the file being referenced
+
+        Parameters:
+            ctime_s (int): 32-bit ctime seconds, the last time a file's metadata changed
+            ctime_n (int): 32-bit ctime nanosecond fractions
+            mtime_s (int): 32-bit mtime seconds, the last time a file's data changed
+            mtime_n (int): 32-bit mtime nanosecond fractions
+            dev (int): 32-bit device number (where file is stored)
+            ino (int): 32-bit inode number (where file is stored)
+            mode_type (int): 4-bit object type. valid values in binary are:
+                1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
+            mode_perms (int): 9-bit unix permission
+                Only 0755 and 0644 are are valid for regular files, symlinks/gitlinks have 0 here
+            uid (int): 32-bit user id of owner
+            gid (int): 32-bit group id of owner
+            file_size (int): 32-bit file size (on-disk, truncated to 32-bit)
+            sha1 (str): The SHA-1 of file being referenced by this entry
+            flag_assume_valid (int): 1-bit assume-valid flag
+            flag_stage (int): 2-bit stage (during merge)
+            name (str): Entry path name (relative to top level directory, without leading or trailing slash)
+        """
 
         self.ctime_s: int = ctime_s
         self.ctime_n: int = ctime_n
@@ -75,7 +121,12 @@ class GitIndexEntry(object):
 
 
 class GitIndex(object):
-    """"""
+    """GitIndex version 2
+
+    Attributes:
+        version (int): The version of GitIndex (only 2 is supported)
+        entries (list[GitIndexEntry]): The list of entries stored in GitIndex
+    """
 
     version: int = 2
     entries: list[GitIndexEntry]
@@ -83,20 +134,36 @@ class GitIndex(object):
     # sha1: str  # ignored
 
     def __init__(self, version: int = 2, entries: list[GitIndexEntry] = []) -> None:
+        """Initialize a GitIndex with given version and entries
+
+        Parameters:
+            version (int): The version of GitIndex (only 2 is supported)
+            entries (list[GitIndexEntry]): List of parsed entries to store in GitIndex
+        """
+
         self.version = version
         self.entries = entries or []  # `or []` is important part
 
 
 class GitIgnore(object):
-    """"""
+    """A class to hold GitIgnore rules, both absolute and scoped
+
+    Attributes:
+        absolute (list[list[tuple[str, bool]]]): a list of absolute rules
+        scoped (dict[str, list[tuple[str, bool]]]): a dict of relative rules (with dirs as keys)
+    """
 
     absolute: list[list[tuple[str, bool]]]
     scoped: dict[str, list[tuple[str, bool]]]
 
-    def __init__(
-        self, absolute: list[list[tuple]], scoped: dict[str, list[tuple]]
-    ) -> None:
-        """"""
+    def __init__(self, absolute: list[list], scoped: dict[str, list[tuple]]) -> None:
+        """Initialize the GitIgnore with these rules
+
+        Parameters:
+            absolute (list[list]): a list of absolute rules
+            scoped (dict[str, list[tuple]]): a dict of relative rules (with dirs as keys)
+        """
+
         self.absolute = absolute
         self.scoped = scoped
 
@@ -113,15 +180,15 @@ def repo_path(repo: GitRepository, *path: str) -> str:
 
     Examples:
         ```
-        repo_path(repo, "refs", "remotes", "origin", "HEAD")
-        # return $worktree/.git/refs/remotes/origin/HEAD
+        >>> repo_path(repo, "refs", "remotes", "origin", "HEAD")
+        /path/to/repo/.git/refs/remotes/origin/HEAD
         ```
     """
     return os.path.join(repo.git_dir, *path)
 
 
 def repo_file(repo: GitRepository, *path: str, mkdir: bool = False) -> str:
-    """Same as repo_path, but create dirname(*path) if absent
+    """Compute path under repo's git/ directory, and create dirname(*path) if absent
 
     Parameters:
         repo (GitRepository): The current working git repository
@@ -133,18 +200,22 @@ def repo_file(repo: GitRepository, *path: str, mkdir: bool = False) -> str:
 
     Examples:
         ```
-        repo_file(repo, "refs", "remotes", "origin", "HEAD")
-        # return $worktree/.git/refs/remotes/origin/HEAD
+        >>> repo_file(repo, "refs", "remotes", "origin", "HEAD")
+        /path/to/repo/.git/refs/remotes/origin/HEAD
         ```
     """
+
     if repo_dir(repo, *path[:-1], mkdir=mkdir):
         return repo_path(repo, *path)
     else:
-        raise FileNotFoundError(f"{path} do not exists and mkdir not specified")
+        raise FileNotFoundError(
+            f"{os.path.join(*path)} do not exists and mkdir not specified."
+            " (packfiles are not supported, try unpacking packfiles first)"
+        )
 
 
 def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None:
-    """Same as repo_path, but mkdir *path if absent if mkdir
+    """Compute dirpath under repo's git/ directory, and mkdir *path if absent if mkdir
 
     Parameters:
         repo (GitRepository): The current working git repository
@@ -157,8 +228,8 @@ def repo_dir(repo: GitRepository, *path: str, mkdir: bool = False) -> str | None
 
     Examples:
         ```
-        repo_dir(repo, "refs", "remotes", "origin")
-        # return $worktree/.git/refs/remotes/origin/
+        >> repo_dir(repo, "refs", "remotes", "origin")
+        /path/to/repo/.git/refs/remotes/origin/
         ```
     """
     git_path: str = repo_path(repo, *path)
@@ -205,13 +276,22 @@ def repo_find(path: str = ".", *, required: bool = True) -> GitRepository | None
 
 
 def repo_find_f(path: str = ".") -> GitRepository:
-    """Helper function that do not return None, to avoid typing hell"""
+    """Find the repository's root (the directory containing `.git/`).
+    raise `TypeError` if `path` is not under any GitRepository
+
+    Parameters:
+        path (str): The path from which to recurse upward (default `$PWD`)
+        required (bool): raise an Exception if no GitRepository found
+
+    Returns:
+        GitRepository (GitRepository): First directory that has `.git/` recursing upward
+    """
     return repo_find(path, required=True)  # type: ignore
 
 
 def cur_branch(repo: GitRepository) -> str | None:
     """Get the currently active branch in repo by de-ref'ing .git/HEAD
-    or `False` if HEAD in detached state"""
+    or `None` if HEAD in detached state"""
     with open(repo_file(repo, "HEAD"), "rt") as head:
         branch: str = head.read()
 
@@ -302,7 +382,15 @@ def tag_list(repo: GitRepository, refs: dict, prefx: str = "") -> None:
 
 
 def gitignore_parse(rules: list[str]) -> list[tuple[str, bool]]:
-    """"""
+    """Parse a list of raw rules from .gitignore into ngit-compatible rules
+    that would allows further processing of checking whether to ignore file or not
+
+    Parameters:
+        rules (list[str]): A list of raw rules read from .gitignore
+
+    Returns:
+        parsed_rules (list[tuple[str, bool]]): Parsed rules with only necessary information
+    """
     parsed_rules: list[tuple[str, bool]] = []
 
     for rule in rules:
@@ -320,7 +408,15 @@ def gitignore_parse(rules: list[str]) -> list[tuple[str, bool]]:
 
 
 def gitignore_check_rule(rules: list[tuple[str, bool]], path: str) -> bool | None:
-    """"""
+    """Check whether path would be ignored under rules or not or can't say under these rules
+
+    Parameters:
+        rules (list[tuple[str, bool]]): The rules to check against
+        path (str): The relative path to file of which ignore-status we want
+
+    Returns:
+        match_status (bool | None): True if ignore, False if keep, None if no rule match
+    """
 
     def _check(path, pat, start, end) -> bool:
         return (

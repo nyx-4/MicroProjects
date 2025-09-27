@@ -6,8 +6,8 @@ from microprojects.ngit.repository import GitRepository, repo_dir, repo_file, re
 from microprojects.ngit.repository import GitIndex, GitIndexEntry
 from microprojects.ngit.repository import GitIgnore, gitignore_check_rule
 from microprojects.ngit.object import GitObject, GitCommit, GitBlob, GitTag, GitTree
-from microprojects.ngit.object_utils import object_read, object_find, object_write
-from microprojects.ngit.object_utils import object_pick, shortify_hash, index_read
+from microprojects.ngit.object_utils import object_read, object_pick, object_write
+from microprojects.ngit.object_utils import shortify_hash, index_read
 
 
 def repo_default_config() -> configparser.ConfigParser:
@@ -181,35 +181,58 @@ def ls_tree(
 
 
 def ls_files(repo: GitRepository, fmt: str, endl: str = "\n") -> None:
-    """"""
+    """Show information about files in the index and the working tree in desired `fmt`
+
+    Parameters:
+        repo (GitRepository): The current working git repository
+        fmt (str): Pretty-print the contents of the tree in this format
+        endl (str): The separater after each entry
+
+    Returns:
+        None (None): have side-effect (prints on screen), so returns `None` to enforce this behavior
+    """
 
     def prettify(entry: GitIndexEntry, format_str: str) -> str:
-        obj_type: str = {0o10: "blob", 0o12: "symlink", 0o16: "commit"}[entry.mode_type]
+        """Returns a formatted version of `format_str` using substitutions from entry
 
-        format_str = format_str.replace("%(objectmode)", f"{entry.mode_type:02o}{entry.mode_perms:04o}")  # fmt: skip
-        format_str = format_str.replace("%(objecttype)", f"{obj_type}")
-        format_str = format_str.replace("%(objectname)", f"{entry.sha1}")
-        format_str = format_str.replace("%(objectsize)", f"{entry.file_size}")
-        format_str = format_str.replace("%(stage)", f"{entry.flag_stage}")
-        format_str = format_str.replace("%(path)", f"{entry.name}")
+        Parameters:
+            entry (GitIndexEntry): The GitIndexEntry to use for filling the `format_str`
+            format_str (str): The str containing the desired format
+
+        Returns:
+            format_str (str): The format_str, with supported formats replaced by respective values
+        """
+
+        def to_iso(timestamp: int) -> str:
+            return datetime.isoformat(datetime.fromtimestamp(timestamp))
+
+        obj_type: str = {0o10: "blob", 0o12: "symlink", 0o16: "commit"}[entry.mode_type]
+        obj_mode: str = f"{entry.mode_type:02o}{entry.mode_perms:04o}"
+        flags: str = f"{entry.flag_assume_valid}{entry.flag_stage}"
+
+        format_str = format_str.replace("%(objectmode)", obj_mode)
+        format_str = format_str.replace("%(objecttype)", obj_type)
+        format_str = format_str.replace("%(objectname)", entry.sha1)
+        format_str = format_str.replace("%(objectsize)", str(entry.file_size))
+        format_str = format_str.replace("%(stage)", str(entry.flag_stage))
+        format_str = format_str.replace("%(path)", entry.name)
 
         # Extras
         format_str = format_str.replace("%(ctime)", f"{entry.ctime_s}:{entry.ctime_n}")
         format_str = format_str.replace("%(mtime)", f"{entry.mtime_s}:{entry.mtime_n}")
-        format_str = format_str.replace("%(ctime:iso)", f"{datetime.fromtimestamp(entry.ctime_s)}")  # fmt: skip
-        format_str = format_str.replace("%(mtime:iso)", f"{datetime.fromtimestamp(entry.mtime_s)}")  # fmt: skip
-        format_str = format_str.replace("%(dev)", f"{entry.dev}")
-        format_str = format_str.replace("%(ino)", f"{entry.ino}")
-        format_str = format_str.replace("%(uid)", f"{entry.uid}")
-        format_str = format_str.replace("%(gid)", f"{entry.gid}")
-        format_str = format_str.replace("%(gid)", f"{entry.gid}")
-        format_str = format_str.replace("%(flags)", f"{entry.flag_assume_valid}{entry.flag_stage}")  # fmt: skip
+        format_str = format_str.replace("%(ctime:iso)", to_iso(entry.ctime_s))
+        format_str = format_str.replace("%(mtime:iso)", to_iso(entry.mtime_s))
+        format_str = format_str.replace("%(dev)", str(entry.dev))
+        format_str = format_str.replace("%(ino)", str(entry.ino))
+        format_str = format_str.replace("%(uid)", str(entry.uid))
+        format_str = format_str.replace("%(gid)", str(entry.gid))
+        format_str = format_str.replace("%(gid)", str(entry.gid))
+        format_str = format_str.replace("%(flags)", flags)
 
         return format_str
 
-    index: GitIndex = index_read(repo)
-    for entry in index.entries:
-        print(prettify(entry, fmt))
+    for entry in index_read(repo).entries:
+        print(prettify(entry, fmt), end=endl)
 
 
 def checkout(repo: GitRepository, tree: GitTree, path: str, quiet: bool) -> None:
@@ -259,7 +282,15 @@ def show_ref(repo: GitRepository, refs: list, only_sha1: bool, deref: bool, pref
 
 
 def check_ignore(rules: GitIgnore, path: str) -> bool:
-    """"""
+    """Check whether the `path` should be ignored under given GitIgnore `rules`
+
+    Parameters:
+        rules (GitIgnore): The parsed GitIgnore rules to ckeck against
+        path (str): Relative path to file of which we want to check ignore status of
+
+    Returns:
+        status (bool): True if the path will be ignored, False otherwise
+    """
 
     if os.path.isabs(path):
         raise ValueError(f"{path=} should be relative, not absolute")

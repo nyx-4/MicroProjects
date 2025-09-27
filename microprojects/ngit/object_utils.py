@@ -1,6 +1,6 @@
-import hashlib  # ngit uses SHA-1 hash extensively
-import os  # os and os.path provide some nice filesystem abstraction routines
-import zlib  # to compress & decompress files
+import hashlib
+import os
+import zlib
 import re
 
 
@@ -159,15 +159,13 @@ def object_find_f(
         return obj
 
 
-def get_obj_type(repo, sha1) -> str:
+def get_obj_type(repo: GitRepository, sha1: str) -> str:
     """Get object's type without fully parsing the GitObject"""
     with open(repo_file(repo, "objects", sha1[:2], sha1[2:]), "rb") as obj_file:
-        type: bytes = zlib.decompress(obj_file.read())
-
-    return type[: type.find(b" ")].decode()
+        return zlib.decompress(obj_file.read()).split(b" ", 1)[0].decode()
 
 
-def get_obj_size(repo, sha1) -> int:
+def get_obj_size(repo: GitRepository, sha1: str) -> int:
     """Get object's size after decompressing"""
     with open(repo_file(repo, "objects", sha1[:2], sha1[2:]), "rb") as obj_file:
         return len(zlib.decompress(obj_file.read()))
@@ -252,7 +250,14 @@ def tag_create(
 
 
 def index_read(repo: GitRepository) -> GitIndex:
-    """"""
+    """Like GitTrees, GitIndex is also stored in binary format
+
+    Parameters:
+        repo (GitRepository): GitRepository of whose GitIndex we want to read
+
+    Returns:
+        index (GitIndex): The parsed GitIndex of `repo`
+    """
 
     def bin_read(raw_data: bytes) -> int:
         """A helper function to converts big-endian bytes to int"""
@@ -268,9 +273,12 @@ def index_read(repo: GitRepository) -> GitIndex:
         raw_idx: bytes = file.read()
 
     signature: bytes = raw_idx[:4]
-    assert signature == b"DIRC", f"signature should be b'DIRC', got {signature=}"
+    if signature != b"DIRC":
+        print(f"WARNING: signature should be b'DIRC', got {signature=}")
+
     version: int = bin_read(raw_idx[4:8])
-    assert version == 2, f"Only version 2 GitIndex is supported, got {version=}"
+    if version != 2:
+        print(f"WARNING: only version 2 GitIndex is supported, got {version=}")
 
     len_entries: int = bin_read(raw_idx[8:12])
     entries: list[GitIndexEntry] = []
@@ -317,7 +325,15 @@ def index_read(repo: GitRepository) -> GitIndex:
 
 
 def index_write(repo: GitRepository, index: GitIndex) -> None:
-    """"""
+    """Serialize GitIndex back to binary format and write to `.git/index`
+
+    Parameters:
+        repo (GitRepository): The repo whose GitIndex we want to update
+        index (GitIndex): The index to write in GirRepository
+
+    Returns:
+        None (None): have side-effect (write to files), so returns `None` to enforce this behavior
+    """
 
     def _bin(number: int) -> bytes:
         """A helper function to converts int to 4 big-endian bytes"""
@@ -357,8 +373,15 @@ def index_write(repo: GitRepository, index: GitIndex) -> None:
                 i += pad
 
 
-def gitignore_read(repo) -> GitIgnore:
-    """"""
+def gitignore_read(repo: GitRepository) -> GitIgnore:
+    """Read all .gitignore files (both scoped and global), parse them, and return as GitIgnore
+
+    Parameters:
+        repo (GitRepository): The repo whose .gitignore files we want to parse
+
+    Returns:
+        ignore_list (GitIgnore): A list of absolute and scoped .gitignore rules
+    """
     ignore_list: GitIgnore = GitIgnore(absolute=[], scoped={})
 
     # Read local configuration in .git/info/exclude
@@ -385,11 +408,22 @@ def gitignore_read(repo) -> GitIgnore:
             rules: list[str] = object_read(repo, i.sha1).data.decode().splitlines()
             ignore_list.scoped[key] = gitignore_parse(rules)
 
+    ignore_list.absolute.append([(".git", True)])  # ignore `.git/` by default
+
     return ignore_list
 
 
 def flatten_tree(repo: GitRepository, ref: str, prefix: str = "") -> dict[str, str]:
-    """tree -> index"""
+    """Convert recursive tree into flat dict to use with GitIndex
+
+    Parameters:
+        repo (GitRepository): The repo in which tree is located
+        ref (str): Git reference to the `tree` we wish to flatten
+        prefix (str): Internal use only (pass `""` in first call)
+
+    Returns:
+        flat_tree (dict[str, str]): flat tree with same entries as original tree (`ref`)
+    """
     flat_tree: dict[str, str] = {}
     tree: GitObject = object_read(repo, object_find_f(repo, ref, fmt="tree"))
 
@@ -402,12 +436,21 @@ def flatten_tree(repo: GitRepository, ref: str, prefix: str = "") -> dict[str, s
         else:
             flat_tree[prefix + leaf.path] = leaf.sha1
 
-        # print(leaf.__dict__)
     return flat_tree
 
 
 def unflat_index(repo: GitRepository, index: GitIndex) -> str:
-    """index -> tree"""
+    """Convert a flat tree (used in GitIndex) to a recursive format used by GitTree
+
+    **WARNING**: This function has side-effects (write to file), use with precaution
+
+    Parameters:
+        repo (GitRepository): The repo in which `index` is located
+        index (GitIndex): A GitIndex which contains required entries to put in tree
+
+    Returns:
+        SHA-1 (str): The SHA-1 of the root tree written by this function
+    """
     contents: dict[str, list[GitIndexEntry | tuple]] = {"": []}
 
     # build contents in recursive form with each sub_dir appearing once
@@ -446,17 +489,3 @@ def unflat_index(repo: GitRepository, index: GitIndex) -> str:
         contents[parent].append((basename, sha1))
 
     return sha1
-
-
-if __name__ == "__main__":
-    from microprojects.ngit.repository import repo_find_f
-    from pprint import pprint
-
-    index: GitIndex
-
-    index = index_read(repo_find_f())
-
-    # print(*(i.__dict__ for i in index), sep="\n\n")
-    # pprint(unflat_index(repo_find_f(), index_read(repo_find_f())))
-
-    index_write(repo_find_f(), index)

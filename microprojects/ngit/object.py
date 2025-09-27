@@ -68,10 +68,10 @@ class GitBlob(GitObject):
 
 
 class GitCommit(GitObject):
-    """TODO: Add description here
+    """GitCommits are represented as key-value pairs (RFC2822)
 
     Attributes:
-        data (dict):
+        data (dict[None | bytes, list[bytes] | bytes]): key-value pairs (list[bytes] is preferred)
         fmt (bytes): GitCommit uses "commit" in header format
     """
 
@@ -89,14 +89,15 @@ class GitCommit(GitObject):
 
 
 class GitTag(GitCommit):
-    """Tags are similar to commits
+    """Like GitCommit, GitTag are also key-value pairs (RFC2822)
 
     Attributes:
-        data (dict):
+        data (dict[None | bytes, list[bytes] | bytes]): key-value pairs (list[bytes] is preferred)
         fmt (bytes): GitTag uses "tag" in header format
     """
 
     fmt: bytes = b"tag"
+    # all other stuff is same as GitCommit
 
 
 class GitTree(GitObject):
