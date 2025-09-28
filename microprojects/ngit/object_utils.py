@@ -234,9 +234,9 @@ def tag_create(
 
         tag_obj.data = {
             b"object": sha1.encode(),
-            b"type": b"commit",  # TODO: get proper type of sha1
+            b"type": get_obj_type(repo, sha1).encode(),
             b"tag": tagname.encode(),
-            b"tagger": b"Nyx <nyx@example.com> 1756495905 +0500",  # TODO: read from config file
+            b"tagger": f"{repo.conf['user']['name']} <{repo.conf['user']['email']}>".encode(),
             None: message.encode(),
         }
 
@@ -279,6 +279,9 @@ def index_read(repo: GitRepository) -> GitIndex:
     version: int = bin_read(raw_idx[4:8])
     if version != 2:
         print(f"WARNING: only version 2 GitIndex is supported, got {version=}")
+    if version == 0:
+        print("WARNING: force setting GitIndex version to 2")
+        version = 2
 
     len_entries: int = bin_read(raw_idx[8:12])
     entries: list[GitIndexEntry] = []
@@ -340,6 +343,10 @@ def index_write(repo: GitRepository, index: GitIndex) -> None:
         return number.to_bytes(4, "big")
 
     with open(repo_file(repo, "index"), "wb") as idx:
+        if index.version == 0:
+            print("WARNING: The GitIndex version specified is 0, force setting to 2")
+            index.version = 2
+
         idx.write(b"DIRC")
         idx.write(_bin(index.version))
         idx.write(_bin(len(index.entries)))

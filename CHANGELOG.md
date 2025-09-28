@@ -32,8 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converted `shortify_hash` to a function, use a local lambda to use like previous implementation
 - Changed the release workflow (upload patches to TestPyPI but only uploads minor changes to PyPI)
 
+
 ### Fixed
 - Reduced nesting and minor-redundancy in `kvlm_serialize`
+- The tagger name is read from git-config, instead of being hard-coded
 
 
 ## [0.1.2]

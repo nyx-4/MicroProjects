@@ -3,11 +3,30 @@ from datetime import datetime
 
 
 from microprojects.ngit.repository import GitRepository, GitIndex, GitIndexEntry
+from microprojects.ngit.repository import cur_branch
 from microprojects.ngit.object_utils import flatten_tree, index_read, index_write
-from microprojects.ngit.object_utils import object_write, gitignore_read
+from microprojects.ngit.object_utils import object_write
 from microprojects.ngit.object import GitCommit
-from microprojects.ngit.ngit_utils import check_ignore
 from microprojects.ngit.libngit import object_hash
+
+
+def show_status(
+    repo, paths: list[str], ignored, fmt: int = 0, branch: bool = False, untracked: str = "all"
+) -> None:  # fmt: skip
+    """"""
+    index: GitIndex = index_read(repo)
+
+    if fmt == 0:
+        print(f"On branch {cur_branch(repo)}")
+    elif branch is True:  # is True
+        print(f"## {cur_branch(repo)}")
+
+    print("Changes to be committed:")
+    get_changes_head_index(repo, index)
+
+    print("Changes not staged for commit:")
+
+    print("Untracked files:")
 
 
 def get_changes_head_index(repo: GitRepository, index: GitIndex) -> dict[str, list]:
@@ -96,17 +115,19 @@ def get_changes_index_worktree(repo: GitRepository, index: GitIndex) -> dict[str
 
 
 def rm_from_index(
-    repo: GitRepository, paths: list[str], delete: bool = True, skip_missing: bool = False,
-    write: bool = True
+    repo: GitRepository, paths: list[str], ignored, delete: bool = True,
+    skip_missing: bool = False, write: bool = True, recurse: bool = False
 ) -> GitIndex:  # fmt: skip
     """Remove a list of files from index, so that next commit wouldn't include those files
 
     Parameters:
         repo (GitRepository): The current working git repository
         paths (list[str]): A list of paths to remove from staging area
+        ignored (Callable): function that takes abspath and returns True if abspath is ignored
         delete (bool): **Use with Caution** if True, delete file from worktree also
         skip_missing (bool): if True, ignore paths that are not in worktree
         write (bool): if True, write-back the updated index
+        recurse (bool): if True, recursively remove files from given directories
 
     Returns:
         index (GitIndex): The updated index after removing these paths from GitIndex
@@ -122,10 +143,19 @@ def rm_from_index(
     for path in paths:
         abspath: str = os.path.abspath(path)
 
-        if abspath.startswith(worktree):
-            to_be_rm.add(abspath)
-        else:  # The requested is outside worktree
+        # The requested is outside worktree
+        if not abspath.startswith(worktree) and abspath != repo.worktree:
             raise PermissionError(f"can't remove {path} outside of '{worktree = }'")
+
+        if os.path.isdir(abspath) and recurse is False:
+            relpath: str = abspath.removeprefix(worktree)
+            raise IsADirectoryError(f"not removing {relpath} recursively without -r")
+
+        if os.path.isdir(abspath):
+            for abspath in filter_paths([abspath], ignored):
+                to_be_rm.add(abspath)
+        else:
+            to_be_rm.add(abspath)
 
     for entry in index.entries:
         abspath = os.path.join(worktree, entry.name)
@@ -150,17 +180,25 @@ def rm_from_index(
     return index
 
 
-def add_to_index(repo: GitRepository, paths: list[str]) -> GitIndex:
+def add_to_index(
+    repo: GitRepository, paths: list[str], ignored, err: bool = True
+) -> GitIndex:
     """Add a list of files to index, so that next commit will include these files also
 
     Parameters:
         repo (GitRepository): The current working git repository
         paths (list[str]): A list of paths to add to staging area
+        ignored (Callable): function that takes abspath and returns True if abspath is ignored
+        err (bool): if True, then raise Errors if something goes wrong
 
     Returns:
         index (GitIndex): The updated index after adding these paths to GitIndex
     """
-    index: GitIndex = rm_from_index(repo, paths, delete=False, skip_missing=True, write=False)  # fmt: skip
+
+    index: GitIndex = rm_from_index(
+        repo, paths, ignored, delete=False, skip_missing=True, write=False, recurse=True
+    )
+
     worktree: str = repo.worktree + os.sep
 
     clean_paths: set = set()
@@ -170,15 +208,19 @@ def add_to_index(repo: GitRepository, paths: list[str]) -> GitIndex:
         abspath: str = os.path.abspath(path)
         relpath: str = os.path.relpath(abspath, worktree)
 
-        # some sanity checks
-        if not os.path.exists(abspath):  # file do not exists
-            raise FileNotFoundError(f"{relpath} not found")
-        if not os.path.isfile(abspath):  # TODO: add all files recursively
-            raise IsADirectoryError(f"{abspath} is not a file")
-        if not abspath.startswith(worktree):  # outside git's worktree
-            raise NameError(f"{path} is outside the repository at '{worktree}'")
+        if err is True:
+            if not os.path.exists(abspath):  # file do not exists
+                raise FileNotFoundError(f"{relpath} not found")
+            if not abspath.startswith(worktree) and abspath != repo.worktree:
+                raise NameError(f"{path} is outside the repository at '{worktree}'")
 
-        clean_paths.add((abspath, relpath))
+        # add to clean paths
+        if os.path.isdir(abspath):  # if directory, then add recursively
+            for abspath in filter_paths([abspath], ignored):
+                relpath = os.path.relpath(abspath, worktree)
+                clean_paths.add((abspath, relpath))
+        else:
+            clean_paths.add((abspath, relpath))
 
     for abspath, relpath in clean_paths:
         with open(abspath, "rb") as obj:
@@ -251,7 +293,7 @@ def filter_paths(paths: list[str], ignored) -> list[str]:
 
     Parameters:
         paths (list[str]): list of filepaths and dirs
-        ignored (Callable): function that takes abspath and returns False if abspath is not ignored
+        ignored (Callable[[str], bool]): function that takes abspath and returns True if abspath is ignored
 
     Returns:
         fpaths (list[str]): list of filepaths that are not ignored (no dirs)
@@ -273,15 +315,3 @@ def filter_paths(paths: list[str], ignored) -> list[str]:
                 fpaths.append(abspath)
 
     return fpaths
-
-
-if __name__ == "__main__":
-    from microprojects.ngit.repository import repo_find_f, GitIgnore
-
-    repo: GitRepository = repo_find_f()
-    rules: GitIgnore = gitignore_read(repo)
-
-    def checker(path) -> bool:
-        return check_ignore(rules, os.path.relpath(path, repo.worktree))
-
-    print(*filter_paths(["."], checker), sep="\n")

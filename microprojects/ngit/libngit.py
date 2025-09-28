@@ -10,7 +10,7 @@ from microprojects.ngit.object_utils import gitignore_read, get_obj_type, get_ob
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
 from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files, check_ignore
 from microprojects.ngit.log import print_logs
-from microprojects.ngit.status import filter_paths
+from microprojects.ngit.status import show_status, add_to_index, rm_from_index
 
 
 def ngit_main() -> None:
@@ -54,9 +54,10 @@ def ngit_main() -> None:
         action="store_true",
         help="All files in entire worktree will be added to GitIndex",
     )
-    argsp_add.add_argument(  # --ignore-errors
+    argsp_add.add_argument(  # --ignore-errors  --no-errors
         "--ignore-errors",
-        dest="no_errors",
+        "--no-errors",
+        dest="no_err",
         action="store_true",
         help="If some files could not be added, do not abort the operation, but continue adding the others",
     )
@@ -76,40 +77,40 @@ def ngit_main() -> None:
     )
     argsp_cat_file.add_argument(  # type
         "type",
-        metavar="<type>",
+        metavar="TYPE",
         choices=["blob", "commit", "tag", "tree", None],
         default=None,
         nargs="?",
-        help="Specify the type of object to be read. Possible values are blob, commit, tag, and tree.",
+        help="Specify the type of object to be read. Possible values are blob, commit, tag, and tree",
     )
     arggrp_cat_file_type = argsp_cat_file.add_mutually_exclusive_group(required=False)
     arggrp_cat_file_type.add_argument(  # -e only-error
         "-e",
         dest="only_error",
         action="store_true",
-        help="Exit with zero if <object> exists and is valid, else return non-zero and error-message",
+        help="Exit with zero if OBJECT exists and is valid, else return non-zero and error-message",
     )
     arggrp_cat_file_type.add_argument(  # -p pretty-print
         "-p",
         dest="pretty_print",
         action="store_true",
-        help="Pretty-print the contents of <object> based on its type.",
+        help="Pretty-print the contents of OBJECT based on its type",
     )
     arggrp_cat_file_type.add_argument(  # -t only-type
         "-t",
         dest="only_type",
         action="store_true",
-        help="Instead of the content, show the object type identified by <object>.",
+        help="Instead of the content, show the object type identified by OBJECTS",
     )
     arggrp_cat_file_type.add_argument(  # -s only-size
         "-s",
         dest="only_size",
         action="store_true",
-        help="Instead of the content, show the object size identified by <object>.",
+        help="Instead of the content, show the object size identified by OBJECTS",
     )
     argsp_cat_file.add_argument(  # object
         "object",
-        help="The name/hash of the object to show.",
+        help="The name/hash of the object to show",
     )
 
     # ArgParser for ngit check-ignore
@@ -165,7 +166,7 @@ def ngit_main() -> None:
     argsp_checkout.add_argument(  # --dest
         "--dest",
         default=None,
-        help="checkout to <dest> instead of current repository, provided <dest> is empty directory",
+        help="checkout to DEST instead of current repository, provided DEST is empty directory",
     )
     argsp_checkout.add_argument(  # branch
         "branch",
@@ -175,6 +176,115 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit commit
+    argsp_commit = arg_subparser.add_parser(  # commit
+        "commit",
+        prog="ngit commit",
+        description="Record changes to the repository",
+        help="Record changes to the repository",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    argsp_commit.add_argument(  # -a --all
+        "-a",
+        "--all",
+        dest="all",
+        action="store_true",
+        help="Automatically stage files that have been modified and deleted, (new files are not affected)",
+    )
+    argsp_commit.add_argument(  # -C --reuse-message
+        "-C",
+        "--reuse-message",
+        dest="reuse_commit",
+        metavar="COMMIT",
+        help="Reuse the log message and the authorship information from an existing COMMIT when creating the commit",
+    )
+    argsp_commit.add_argument(  # --reset-author
+        "--reset-author",
+        dest="reset_author",
+        action="store_true",
+        help="When used with -C, declare that the authorship of the resulting commit now belongs to the committer",
+    )
+    argsp_commit.add_argument(  # -s --short
+        "--short",
+        dest="short",
+        action="store_true",
+        help="Give the output in the short-format",
+    )
+    argsp_commit.add_argument(  # -b --branch
+        "--branch",
+        dest="branch",
+        action="store_true",
+        help="Show the branch and tracking info even in short-format",
+    )
+    argsp_commit.add_argument(  # --porcelain
+        "--porcelain",
+        dest="porcelain",
+        action="store_true",
+        help="Give the output in an easy-to-parse format for scripts",
+    )
+    argsp_commit.add_argument(  # --long
+        "--long",
+        dest="long",
+        action="store_true",
+        help="Give the output in the long-format (default)",
+    )
+    argsp_commit.add_argument(  # -z -null
+        "-z",
+        "--null",
+        dest="null_terminator",
+        action="store_true",
+        help="\\0 line termination on output and do not quote filenames",
+    )
+    argsp_commit.add_argument(  # -F --file
+        "-F",
+        "--file",
+        help="Take the commit message from FILE. Use - to read the message from the standard input",
+    )
+    argsp_commit.add_argument(  # --author
+        "--author",
+        help="Override the commit author",
+    )
+    argsp_commit.add_argument(  # --date
+        "--date",
+        help="Override the author date used in the commit",
+    )
+    argsp_commit.add_argument(  # -m --message
+        "-m",
+        "--message",
+        metavar="MSG",
+        action="append",
+        help="Use MSG as the commit message. If multiple -m options are given, "
+        "their values are concatenated as separate paragraphs",
+    )
+    argsp_commit.add_argument(  # --allow-empty
+        "--allow-empty",
+        action="store_true",
+        help="Create a commit with no changes",
+    )
+    argsp_commit.add_argument(  # --allow-empty-messages
+        "--allow-empty-messages",
+        action="store_true",
+        help="Create a commit with no commit message",
+    )
+    argsp_commit.add_argument(  # --trailer
+        "--trailer",
+        action="append",
+        dest="trailer",
+        metavar="TOKEN:VALUE",
+        help="Specify a TOKEN:VALUE pair that should be applied as a trailer at end of commit message",
+    )
+    argsp_commit.add_argument(  # -s --signoff
+        "-s",
+        "--signoff",
+        dest="signoff",
+        action="store_true",
+        help="Add a Signed-off-by trailer by the committer at the end of the commit log message",
+    )
+    argsp_commit.add_argument(  # --no-signoff
+        "--no-signoff",
+        dest="signoff",
+        action="store_false",
+        help="The --no-signoff option can be used to countermand an earlier --signoff option on the command line",
+    )
 
     # ArgParser for ngit hash-object
     argsp_hash_object = arg_subparser.add_parser(  # hash-object
@@ -190,30 +300,30 @@ def ngit_main() -> None:
         metavar="<type>",
         default="blob",
         choices=["blob", "commit", "tag", "tree"],
-        help="Specify the type of object to be created, Possible values are blob, commit, tag, and tree.",
+        help="Specify the type of object to be created, Possible values are blob, commit, tag, and tree",
     )
     argsp_hash_object.add_argument(  # -w write
         "-w",
         dest="write",
         action="store_true",
-        help="Actually write the object into the object database.",
+        help="Actually write the object into the object database",
     )
     argsp_hash_object.add_argument(  # --stdin-path
         "--stdin-paths",
         action="store_true",
-        help="Read file names from the standard input, one per line, instead of from the command-line.",
+        help="Read file names from the standard input, one per line, instead of from the command-line",
     )
     argsp_hash_object.add_argument(  # -i --stdin
         "-i",
         "--stdin",
         dest="stdin",
         action="store_true",
-        help="Read the object from standard input instead of from a file.",
+        help="Read the object from standard input instead of from a file",
     )
     argsp_hash_object.add_argument(  # path
         "path",
         nargs="*",
-        help="Hash object as if it were located at the given path.",
+        help="Hash object as if it were located at the given path",
     )
 
     # ArgParser for ngit help
@@ -222,8 +332,8 @@ def ngit_main() -> None:
     argsp_init = arg_subparser.add_parser(  # init
         "init",
         prog="ngit init",
-        description="Initialize a new, empty repository.",
-        help="Initialize a new, empty repository.",
+        description="Initialize a new, empty repository",
+        help="Initialize a new, empty repository",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     argsp_init.add_argument(  # path
@@ -231,20 +341,20 @@ def ngit_main() -> None:
         metavar="directory",
         nargs="?",
         default=".",
-        help="Where to create the repository.",
+        help="Where to create the repository",
     )
     argsp_init.add_argument(  # -q --quiet
         "-q",
         "--quiet",
         action="store_true",
-        help="Only print error and warning messages; all other output will be suppressed.",
+        help="Only print error and warning messages; all other output will be suppressed",
     )
     argsp_init.add_argument(  # -b --initial-branch
         "-b",
         "--initial-branch",
         metavar="BRANCH-NAME",
         default="main",
-        help="Use BRANCH-NAME for the initial branch in the newly created repository. (Default: main)",
+        help="Use BRANCH-NAME for the initial branch in the newly created repository (default: main)",
     )
 
     # ArgParser for ngit log
@@ -265,73 +375,73 @@ def ngit_main() -> None:
     argsp_log.add_argument(  # --log-size
         "--log-size",
         action="store_true",
-        help='Include a line "log size <number>" in the output for each commit',
+        help='Include a line "log size NUMBER" in the output for each commit',
     )
     argsp_log.add_argument(  # -n --max-count
         "-n",
         "--max-count",
         default=-1,
         type=int,
-        help="Limit the number of commits to output.",
+        help="Limit the number of commits to output",
     )
     argsp_log.add_argument(  # --skip
         "--skip",
         type=int,
         default=0,
-        help="Skip number commits before starting to show the commit output.",
+        help="Skip number commits before starting to show the commit output",
     )
     argsp_log.add_argument(  # --after --since --since-as-filter
         "--after",
         "--since",
         "--since-as-filter",
         dest="after",
-        help="Show all commits more recent than a specific date.",
+        help="Show all commits more recent than a specific date",
     )
     argsp_log.add_argument(  # --before --until
         "--before",
         "--until",
         dest="before",
-        help="Show commits older than a specific date.",
+        help="Show commits older than a specific date",
     )
     argsp_log.add_argument(  # --min-parents
         "--min-parents",
         type=int,
         default=0,
-        help="Show only commits which have at least that many parent commits.",
+        help="Show only commits which have at least that many parent commits",
     )
     argsp_log.add_argument(  # --max-parents
         "--max-parents",
         type=int,
         default=-1,
-        help="Show only commits which have at most that many parent commits.",
+        help="Show only commits which have at most that many parent commits",
     )
     argsp_log.add_argument(  # --no-min-parents
         "--no-min-parents",
         action="store_const",
         const=0,
         dest="min_parents",
-        help="Show only commits which have at least that many parent commits.",
+        help="Show only commits which have at least that many parent commits",
     )
     argsp_log.add_argument(  # --no-max-parents
         "--no-max-parents",
         action="store_const",
         const=-1,
         dest="max_parents",
-        help="Show only commits which have at most that many parent commits.",
+        help="Show only commits which have at most that many parent commits",
     )
     argsp_log.add_argument(  # --merges
         "--merges",
         action="store_const",
         const=2,
         dest="min_parents",
-        help="Print only merge commits. This is exactly the same as --min-parents=2.",
+        help="Print only merge commits (this is exactly the same as --min-parents=2)",
     )
     argsp_log.add_argument(  # --no-merges
         "--no-merges",
         action="store_const",
         const=1,
         dest="max_parents",
-        help="Do not print commits with more than one parent. This is exactly the same as --max-parents=1.",
+        help="Do not print commits with more than one parent (this is exactly the same as --max-parents=1)",
     )
     argsp_log.add_argument(  # --format --pretty
         "--format",
@@ -353,7 +463,7 @@ def ngit_main() -> None:
         "commits",
         default="HEAD",
         nargs="?",
-        help="Commit to start at.",
+        help="Commit to start at",
     )
 
     # ArgParser for ngit ls-files
@@ -425,19 +535,19 @@ def ngit_main() -> None:
         "-d",
         dest="only_trees",
         action="store_true",
-        help="Show only the named tree entry itself, not its children.",
+        help="Show only the named tree entry itself, not its children",
     )
     argsp_ls_tree.add_argument(  # -r
         "-r",
         dest="recurse_trees",
         action="store_true",
-        help="Recurse into sub-trees.",
+        help="Recurse into sub-trees",
     )
     argsp_ls_tree.add_argument(  # -t
         "-t",
         dest="always_trees",
         action="store_true",
-        help="Show tree entries even when going to recurse them.",
+        help="Show tree entries even when going to recurse them",
     )
     argsp_ls_tree.add_argument(  # -l --long
         "-l",
@@ -445,13 +555,13 @@ def ngit_main() -> None:
         action="store_const",
         const="%(objectmode) %(objecttype) %(objectname) %(objectsize:padded)\t%(path)",
         dest="format_str",
-        help="Show object size of blob (file) entries.",
+        help="Show object size of blob (file) entries",
     )
     argsp_ls_tree.add_argument(  # -z
         "-z",
         dest="null_terminator",
         action="store_true",
-        help="\\0 line termination on output and do not quote filenames.",
+        help="\\0 line termination on output and do not quote filenames",
     )
     argsp_ls_tree.add_argument(  # --name-only --name-status
         "--name-only",
@@ -459,20 +569,20 @@ def ngit_main() -> None:
         action="store_const",
         const="%(path)",
         dest="format_str",
-        help="List only filenames, one per line.",
+        help="List only filenames, one per line",
     )
     argsp_ls_tree.add_argument(  # --object-only
         "--object-only",
         action="store_const",
         const="%(objectname)",
         dest="format_str",
-        help="List only names of the objects, one per line.",
+        help="List only names of the objects, one per line",
     )
     argsp_ls_tree.add_argument(  # tree
         "tree",
         default="HEAD",
         nargs="?",
-        help="Tree(-ish) object to start at.",
+        help="Tree(-ish) object to start at",
     )
 
     # ArgParser for ngit rev-parse
@@ -491,16 +601,16 @@ def ngit_main() -> None:
         default=None,
         help="Specify the type of object to be created, Possible values are blob, commit, tag, and tree",
     )
-    argsp_rev_parse.add_argument(  # name
-        "name",
-        nargs="+",
-        help="The name of object to parse",
-    )
     argsp_rev_parse.add_argument(  # --follow
         "--follow",
         dest="follow",
         action="store_true",
         help="follow tags objects",
+    )
+    argsp_rev_parse.add_argument(  # name
+        "name",
+        nargs="+",
+        help="The name of object to parse",
     )
 
     # ArgParser for ngit rm
@@ -517,6 +627,13 @@ def ngit_main() -> None:
         dest="force",
         action="store_true",
         help="Override the up-to-date check",
+    )
+    argsp_rm.add_argument(  # --ignore-errors  --no-errors
+        "--ignore-errors",
+        "--no-errors",
+        dest="no_err",
+        action="store_true",
+        help="If some files could not be removed, do not abort the operation, but continue removing the others",
     )
     argsp_rm.add_argument(  # -q --quiet
         "-q",
@@ -544,8 +661,11 @@ def ngit_main() -> None:
         "--stdin",
         "--pathspec-from-file",
         dest="stdin",
-        metavar="<path>",
-        help="Pathspec is passed in <file> instead of args, if <file> is exactly - then standard input is used",
+        metavar="PATH",
+        default=None,
+        nargs="?",
+        const="-",
+        help="Pathspec is passed in FILE instead of args, if FILE is exactly - then standard input is used",
     )
     argsp_rm.add_argument(  # paths
         "paths",
@@ -601,8 +721,8 @@ def ngit_main() -> None:
         "--quiet",
         dest="quiet",
         action="store_true",
-        help="Do not print any results to stdout. "
-        "Can be used with --verify to silently check if a reference exists",
+        help="Do not print any results to stdout"
+        " (can be used with --verify to silently check if a reference exists)",
     )
     argsp_show_ref.add_argument(  # -s --hash
         "-s",
@@ -635,40 +755,44 @@ def ngit_main() -> None:
     )
 
     # ArgParser for ngit status
-    argsp_staus = arg_subparser.add_parser(
+    argsp_status = arg_subparser.add_parser(  # status
         "status",
         prog="ngit status",
         description="Show the working tree status",
         help="Show the working tree status",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    argsp_staus.add_argument(  # -s --short
-        "-s",
-        "--short",
-        dest="short",
-        action="store_true",
-        help="Give the output in the short-format",
-    )
-    argsp_staus.add_argument(  # -b --branch
+    argsp_status.add_argument(  # -b --branch
         "-b",
         "--branch",
         dest="branch",
         action="store_true",
         help="Show the branch and tracking info even in short-format",
     )
-    argsp_staus.add_argument(  # --porcelain
-        "--porcelain",
-        dest="porcelain",
-        action="store_true",
-        help="Give the output in an easy-to-parse format for scripts",
-    )
-    argsp_staus.add_argument(  # --long
+    argsp_status.add_argument(  # --long
         "--long",
-        dest="long",
-        action="store_true",
+        dest="format",
+        action="store_const",
+        const=0,
+        default=0,
         help="Give the output in the long-format (default)",
     )
-    argsp_staus.add_argument(  # -u --untracked-files
+    argsp_status.add_argument(  # -s --short
+        "-s",
+        "--short",
+        dest="format",
+        action="store_const",
+        const=1,
+        help="Give the output in the short-format",
+    )
+    argsp_status.add_argument(  # --porcelain
+        "--porcelain",
+        dest="format",
+        action="store_const",
+        const=2,
+        help="Give the output in an easy-to-parse format for scripts",
+    )
+    argsp_status.add_argument(  # -u --untracked-files
         "-u",
         "--untracked-files",
         dest="untracked",
@@ -678,14 +802,14 @@ def ngit_main() -> None:
         nargs="?",
         help="Show untracked files",
     )
-    argsp_staus.add_argument(  # paths
+    argsp_status.add_argument(  # paths
         "paths",
         nargs="*",
         help="Files to add content from",
     )
 
     # ArgParser for ngit tag
-    argsp_tag = arg_subparser.add_parser(
+    argsp_tag = arg_subparser.add_parser(  # tag
         "tag",
         prog="ngit tag",
         description="Create, list or delete a tag object",
@@ -711,7 +835,7 @@ def ngit_main() -> None:
         "--list",
         dest="list",
         action="store_true",
-        help="List tags. Running `git tag` without arguments also lists all tags",
+        help="List tags (Note: running `git tag` without arguments also lists all tags)",
     )
     argsp_tag.add_argument(  # -f --force
         "-f",
@@ -789,14 +913,27 @@ def main(args: argparse.Namespace) -> None:
         case "tag":
             cmd_tag(args)
         case _:
-            print(f"WARNING: bad command '{args.command}'.")
+            print(f"WARNING: bad command '{args.command}'")
 
 
-# Bridge functions for CLI argument processing.
+# Bridge functions for CLI argument processing
 
 
 def cmd_add(args: argparse.Namespace) -> None:
-    pass
+    def ignored(path) -> bool:
+        return check_ignore(rules, os.path.relpath(path, repo.worktree))
+
+    repo: GitRepository = repo_find_f()
+
+    if args.force:  # --force will ignore only .git
+        rules = GitIgnore(absolute=[[(".git", True)]], scoped={})
+    else:
+        rules: GitIgnore = gitignore_read(repo)
+
+    if args.all:  # if --all specified, add .
+        args.paths.append(".")
+
+    add_to_index(repo, args.paths, ignored, not args.no_err)
 
 
 def cmd_cat_file(args: argparse.Namespace) -> None:
@@ -933,7 +1070,24 @@ def cmd_rev_parse(args: argparse.Namespace) -> None:
 
 
 def cmd_rm(args: argparse.Namespace) -> None:
-    pass
+    def ignored(path) -> bool:
+        return check_ignore(rules, os.path.relpath(path, repo.worktree))
+
+    repo: GitRepository = repo_find_f()
+    rules: GitIgnore = gitignore_read(repo)
+
+    if args.stdin is None:
+        pass  # --stdin wasn't given
+    elif args.stdin == "-":
+        print("# Enter paths to remove:")
+        args.paths.extend(sys.stdin.readlines())
+    else:
+        with open(args.stdin, "rt") as file:
+            args.paths.extend(file.readlines())
+
+    rm_from_index(
+        repo, args.paths, ignored, not args.cached, args.no_err, True, args.recursive
+    )
 
 
 def cmd_show_ref(args: argparse.Namespace) -> None:
@@ -956,7 +1110,7 @@ def cmd_show_ref(args: argparse.Namespace) -> None:
     )
 
     # TODO: some bugs here, hunt 'em down!!
-    # TODO: Simplify the convuluted logic here.
+    # TODO: Simplify the convuluted logic here
     if verify == 3:
         sys.exit(0 if all(os.path.exists(repo_file(repo, path)) for path in args.ref) else 2)
     if verify == 0 or verify == 2:
@@ -967,7 +1121,13 @@ def cmd_show_ref(args: argparse.Namespace) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    pass
+    def ignored(path) -> bool:
+        return check_ignore(rules, os.path.relpath(path, repo.worktree))
+
+    repo: GitRepository = repo_find_f()
+    rules: GitIgnore = gitignore_read(repo)
+
+    show_status(repo, args.paths, ignored, args.format, args.branch, args.untracked)
 
 
 def cmd_tag(args: argparse.Namespace) -> None:
