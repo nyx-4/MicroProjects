@@ -68,12 +68,12 @@ def print_logs(
 
         # skip if after and before constraints are not followed
         _date: datetime = datetime.fromtimestamp(
-            int(cur_commit.data.get(b"committer", [])[-1].split()[2]),
+            int(cur_commit.data.get(b"committer", [])[-1].split()[-2]),
         )
 
         _date_tz: datetime = datetime.fromtimestamp(
-            int(cur_commit.data.get(b"committer", [])[-1].split()[2]),
-            tz(cur_commit.data.get(b"committer", [])[-1].split()[3]),
+            int(cur_commit.data.get(b"committer", [])[-1].split()[-2]),
+            tz(cur_commit.data.get(b"committer", [])[-1].split()[-1]),
         )
 
         if after is not None:

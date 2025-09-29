@@ -1,16 +1,19 @@
 import argparse
 import os
 import sys
+from datetime import datetime
 
 from microprojects.ngit.object import GitObject, GitCommit, GitTree
 from microprojects.ngit.repository import GitRepository, repo_file, repo_find_f
+from microprojects.ngit.repository import cur_branch
 from microprojects.ngit.repository import GitIgnore, resolve_ref, ref_list, tag_list
 from microprojects.ngit.object_utils import object_find_f, object_read, tag_create
 from microprojects.ngit.object_utils import gitignore_read, get_obj_type, get_obj_size
+from microprojects.ngit.object_utils import object_write
 from microprojects.ngit.ngit_utils import cat_file, ls_tree, object_hash, repo_create
 from microprojects.ngit.ngit_utils import checkout, show_ref, ls_files, check_ignore
 from microprojects.ngit.log import print_logs
-from microprojects.ngit.status import show_status, add_to_index, rm_from_index
+from microprojects.ngit.status import show_status, add_to_index, rm_from_index, mkcommit
 
 
 def ngit_main() -> None:
@@ -221,6 +224,12 @@ def ngit_main() -> None:
         action="store_true",
         help="Give the output in an easy-to-parse format for scripts",
     )
+    argsp_commit.add_argument(  # --dry-run
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Do not create a commit, but show a list of paths that are to be committed",
+    )
     argsp_commit.add_argument(  # --long
         "--long",
         dest="long",
@@ -241,6 +250,8 @@ def ngit_main() -> None:
     )
     argsp_commit.add_argument(  # --author
         "--author",
+        nargs="*",
+        action="append",
         help="Override the commit author",
     )
     argsp_commit.add_argument(  # --date
@@ -252,16 +263,19 @@ def ngit_main() -> None:
         "--message",
         metavar="MSG",
         action="append",
+        default=[],
         help="Use MSG as the commit message. If multiple -m options are given, "
         "their values are concatenated as separate paragraphs",
     )
     argsp_commit.add_argument(  # --allow-empty
         "--allow-empty",
+        dest="allow_empty",
         action="store_true",
         help="Create a commit with no changes",
     )
     argsp_commit.add_argument(  # --allow-empty-messages
         "--allow-empty-messages",
+        dest="allow_no_msg",
         action="store_true",
         help="Create a commit with no commit message",
     )
@@ -270,6 +284,7 @@ def ngit_main() -> None:
         action="append",
         dest="trailer",
         metavar="TOKEN:VALUE",
+        default=[],
         help="Specify a TOKEN:VALUE pair that should be applied as a trailer at end of commit message",
     )
     argsp_commit.add_argument(  # -s --signoff
@@ -802,11 +817,6 @@ def ngit_main() -> None:
         nargs="?",
         help="Show untracked files",
     )
-    argsp_status.add_argument(  # paths
-        "paths",
-        nargs="*",
-        help="Files to add content from",
-    )
 
     # ArgParser for ngit tag
     argsp_tag = arg_subparser.add_parser(  # tag
@@ -995,7 +1005,85 @@ def cmd_checkout(args: argparse.Namespace) -> None:
 
 
 def cmd_commit(args: argparse.Namespace) -> None:
-    pass
+    def ignored(path) -> bool:
+        return check_ignore(rules, os.path.relpath(path, repo.worktree))
+
+    repo: GitRepository = repo_find_f()
+    rules: GitIgnore = gitignore_read(repo)
+    parent: list[str] = [object_find_f(repo, "HEAD")]
+    message: str = "".join(args.message)
+
+    if not args.author:
+        args.author = [f"{repo.conf['user']['name']} <{repo.conf['user']['email']}>"]
+
+    # if date is given, use that. else get current time
+    if args.date:
+        args.date = datetime.fromisoformat(args.date)
+    else:
+        args.date = datetime.now()
+
+    if args.short:
+        fmt = 1
+    elif args.porcelain:
+        fmt = 2
+    else:
+        fmt = 0
+
+    show_status(repo, ignored, fmt, args.branch, "no")
+
+    if args.dry_run or args.branch or args.long or fmt:
+        sys.exit()  # just dry-run
+
+    if args.all:  # then first add_to_index
+        add_to_index(repo, ["."], ignored)
+
+    if args.file is None:
+        pass  # --file wasn't given
+    elif args.file == "-":
+        print("# Enter commit message (with optional notes):")
+        message += sys.stdin.read()
+    else:
+        with open(args.file, "rt") as file:
+            message += file.read()
+
+    # append trailer verbatim (unlike git, don't preprocess)
+    message += "".join(args.trailer)
+    if args.signoff:
+        message += f"Signed-off-by: {args.authors}"
+
+    if message:  # message is given, just make a commit
+        sha1: str = mkcommit(
+            repo, parent, args.author, args.date, message, args.allow_empty
+        )
+
+    else:  # see if reuse_commit, else raise NameErro
+        if args.reuse_commit:
+            prev: GitObject = object_read(repo, object_find_f(repo, args.reuse_commit))
+            assert type(prev) is GitCommit
+
+            prev.data[b"tree"] = parent[0]
+
+            if args.reset_author is True:
+                time = datetime.fromtimestamp(int(prev.data[b"author"][0].split()[-2]))
+                parent = prev.data.get(b"parent", [])
+                message = prev.data[None].decode()
+
+                sha1 = mkcommit(repo, parent, args.author, time, message, True)
+
+            else:  # this part is easy as, nothing changed
+                sha1 = object_write(repo, prev)
+
+        else:
+            raise NameError("The commit message can't be empty")
+
+    # update branch with new commit
+    if branch := cur_branch(repo):
+        file_path: tuple = "refs", "heads", branch
+    else:  # in detached state, write directly to HEAD
+        file_path = ("HEAD",)
+
+    with open(repo_file(repo, *file_path), "wt") as file:
+        file.write(sha1 + "\n")
 
 
 def cmd_hash_object(args: argparse.Namespace) -> None:
@@ -1127,7 +1215,7 @@ def cmd_status(args: argparse.Namespace) -> None:
     repo: GitRepository = repo_find_f()
     rules: GitIgnore = gitignore_read(repo)
 
-    show_status(repo, args.paths, ignored, args.format, args.branch, args.untracked)
+    show_status(repo, ignored, args.format, args.branch, args.untracked)
 
 
 def cmd_tag(args: argparse.Namespace) -> None:

@@ -5,31 +5,75 @@ from datetime import datetime
 from microprojects.ngit.repository import GitRepository, GitIndex, GitIndexEntry
 from microprojects.ngit.repository import cur_branch
 from microprojects.ngit.object_utils import flatten_tree, index_read, index_write
-from microprojects.ngit.object_utils import object_write
+from microprojects.ngit.object_utils import object_write, unflat_index
 from microprojects.ngit.object import GitCommit
-from microprojects.ngit.libngit import object_hash
+from microprojects.ngit.ngit_utils import object_hash
 
 
 def show_status(
-    repo, paths: list[str], ignored, fmt: int = 0, branch: bool = False, untracked: str = "all"
-) -> None:  # fmt: skip
+    repo, ignored, fmt: int = 0, branch: bool = False, untracked: str = "all"
+) -> None:
     """"""
     index: GitIndex = index_read(repo)
+    head: dict[str, list] = get_changes_head_index(repo, index, ignored)
+    wtree: dict[str, list] = get_changes_index_worktree(repo, index, ignored)
 
     if fmt == 0:
         print(f"On branch {cur_branch(repo)}")
     elif branch is True:  # is True
         print(f"## {cur_branch(repo)}")
 
-    print("Changes to be committed:")
-    get_changes_head_index(repo, index)
+    if fmt == 0:
+        print("\nChanges to be committed:")
+        for key, files in head.items():
+            for file in sorted(files):
+                print(f"\t{key}:\t{file}")
 
-    print("Changes not staged for commit:")
+        print("\nChanges not staged for commit:")
+        for key, files in wtree.items():
+            if key != "untracked":
+                for file in sorted(files):
+                    print(f"\t{key}:\t{file}")
 
-    print("Untracked files:")
+        if untracked != "no":
+            print("\nUntracked files:")
+            for file in sorted(wtree["untracked"]):
+                print(f"\t{file}")
+
+    else:  # --short or --porcelain given
+        col_decode: dict[str, str] = {
+            "modified": "M",
+            "new file": "A",
+            "deleted": "D",
+            "untracked": "?",
+        }
+
+        # col_data maps files to there's status, kinda reverse mapping
+        col_data: dict[str, str] = {}
+
+        for key, files in head.items():
+            for file in files:
+                sym: str = col_decode[key]
+                col_data[file] = sym + col_data.get(file, "  ")[1]
+
+        for key, files in wtree.items():
+            for file in files:
+                sym: str = col_decode[key]
+                col_data[file] = col_data.get(file, "  ")[0] + sym
+
+        for file, status in sorted(col_data.items()):
+            if status != " ?":
+                print(f"{status} {file}")
+
+        if untracked != "no":
+            for file, status in sorted(col_data.items()):
+                if status == " ?":
+                    print(f"?? {file}")
 
 
-def get_changes_head_index(repo: GitRepository, index: GitIndex) -> dict[str, list]:
+def get_changes_head_index(
+    repo: GitRepository, index: GitIndex, ignored
+) -> dict[str, list]:
     """Returns **'Changes to be committed'**, that is the changes between
     last commit _(HEAD)_ and staging area _(index)_
 
@@ -63,7 +107,9 @@ def get_changes_head_index(repo: GitRepository, index: GitIndex) -> dict[str, li
     return changes
 
 
-def get_changes_index_worktree(repo: GitRepository, index: GitIndex) -> dict[str, list]:
+def get_changes_index_worktree(
+    repo: GitRepository, index: GitIndex, ignored
+) -> dict[str, list]:
     """Returns **'Changes not staged for commit'** and **'Untracked files**', that is
     the changes between staging area _(index)_ and worktree _(file system)_
 
@@ -81,14 +127,8 @@ def get_changes_index_worktree(repo: GitRepository, index: GitIndex) -> dict[str
         "untracked": [],
     }
 
-    all_files: list[str] = []
-
-    for root, _, files in os.walk(repo.worktree, True):
-        if root == repo.git_dir or root.startswith(repo.git_dir + os.path.sep):
-            continue  # ignore `.git/` directory entirely
-        for file in files:
-            # append relative path (wrt to repo.worktree) to all_files
-            all_files.append(os.path.relpath(os.path.join(root, file), repo.worktree))
+    all_files: list[str] = filter_paths([repo.worktree], ignored)
+    all_files = list(map(lambda file: os.path.relpath(file, repo.worktree), all_files))
 
     for entry in index.entries:
         full_path: str = os.path.join(repo.worktree, entry.name)
@@ -254,7 +294,7 @@ def add_to_index(
 
 def commit_create(
     repo:GitRepository, tree: str, parents: list[str], authors: list[str],
-    committers: list[str], timestamp: datetime, message: str,
+    committers: list[str], timestamp: datetime, message: str
 ) -> str:  # fmt: skip
     """Create a new commit with the provided information and returns its SHA1
 
@@ -286,6 +326,25 @@ def commit_create(
     commit.data[None] = message.encode() + b"\n"
 
     return object_write(repo, commit)
+
+
+def mkmsg() -> str:
+    """"""
+    return ""
+
+
+def mkcommit(
+    repo:GitRepository, parents: list[str], authors: list[str], timestamp: datetime,
+    message: str, allow_empty: bool = False
+) -> str:  # fmt: skip
+    """"""
+    index: GitIndex = index_read(repo)
+    tree: str = unflat_index(repo, index)
+
+    if tree == parents and allow_empty is False:
+        raise ValueError("can't make empty commits (without --allow-empty)")
+
+    return commit_create(repo, tree, parents, authors, authors, timestamp, message)
 
 
 def filter_paths(paths: list[str], ignored) -> list[str]:

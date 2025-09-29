@@ -7,7 +7,7 @@ from microprojects.ngit.repository import GitIndex, GitIndexEntry
 from microprojects.ngit.repository import GitIgnore, gitignore_check_rule
 from microprojects.ngit.object import GitObject, GitCommit, GitBlob, GitTag, GitTree
 from microprojects.ngit.object_utils import object_read, object_pick, object_write
-from microprojects.ngit.object_utils import shortify_hash, index_read
+from microprojects.ngit.object_utils import shortify_hash, index_read, unflat_index
 
 
 def repo_default_config() -> configparser.ConfigParser:
